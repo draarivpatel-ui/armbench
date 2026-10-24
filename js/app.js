@@ -468,7 +468,7 @@ async function copyReport() {
     els.reportOutput.focus();
     els.reportOutput.select();
   }
-  els.copiedNote.textContent = ok ? 'Copied To Clipboard' : 'Selected, Press Control C';
+  els.copiedNote.textContent = ok ? 'Copied To Clipboard' : 'Selected, Press Control C Or Command C';
   window.setTimeout(() => {
     els.copiedNote.textContent = '';
   }, 2400);
@@ -496,6 +496,11 @@ function init() {
   window.addEventListener('resize', () => {
     window.clearTimeout(chartResizeTimer);
     chartResizeTimer = window.setTimeout(drawChart, 150);
+  });
+
+  /* Park the decorative scanline while the tab is hidden. */
+  document.addEventListener('visibilitychange', () => {
+    document.body.classList.toggle('tab-hidden', document.hidden);
   });
 }
 

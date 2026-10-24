@@ -242,6 +242,10 @@ kbd {
   }
 }
 
+body.tab-hidden .scanline {
+  animation-play-state: paused;
+}
+
 /* Hero ---------------------------------------------------------------------- */
 
 .hero {

@@ -70,3 +70,16 @@ Every Graviton column is `local x 0.8125 x 0.75 x 1.0` and carries an Estimate l
 ## Summary
 
 ArmBench delivers the competition brief the honest way: a dependency free static studio that measures real image and video workload performance on a genuine local Arm CPU with deterministic, test verified kernels, shows the machine it actually ran on, labels every cloud projection as an estimate with its factor math exposed, exports a reproducible methodology report, and documents the exact plug in point for running the same suite on AWS Graviton. 48 tests pass, the Node bench runs in about half a second, and the in page run stays under the ten second budget by construction.
+
+## Refinement Pass 2026-10-24
+
+A presentation only pass over the deployed page. No kernel, timing, or estimate changes.
+
+- Wiring audit: every id app.js references exists in the markup, no duplicate ids, no dead listeners, no reachable console errors on a served load.
+- Added Open Graph title, description and type tags. Share sheets had nothing to read before.
+- Fixed: the copy fallback message told a Mac user to press Control C. It now names both shortcuts, since the declared host is an Apple Silicon Mac.
+- Added: the decorative scanline is explicitly paused while the tab is hidden, via a visibilitychange listener toggling a body class, on top of the browser's own background throttling.
+- Contrast audit: converted the oklch tokens to sRGB and computed WCAG ratios. All text pairs clear AA. Faint text sits at about 5.1 to 1 on panels and muted at about 6.9 to 1, so the small mono labels pass.
+- Verified: no horizontal page overflow at 320 px. The wide tables scroll inside their own focusable regions instead of stretching the page. Reduced motion stops the sweep and the button lifts.
+- Residual risk: module scripts need a static server. Opening index.html from file:// shows the page's own banner explaining this; the Node bench works without a server.
+- Tests before the pass: 48 passed, 0 failed. Tests after: 48 passed, 0 failed.
