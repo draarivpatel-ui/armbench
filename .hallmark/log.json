@@ -1,0 +1,9 @@
+[
+  {
+    "date": "2026-10-24",
+    "macrostructure": "Workbench",
+    "theme": "Terminal, amber signal variant per brief",
+    "enrichment": "none",
+    "brief": "ArmBench, Arm image and video workload bench for the OpenCV AI Competition 2026"
+  }
+]

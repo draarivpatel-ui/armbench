@@ -1,0 +1,16 @@
+{
+  "name": "armbench",
+  "version": "1.0.0",
+  "description": "ArmBench: an image and video workload bench for Arm, measured locally and compared against clearly labeled cloud estimates.",
+  "type": "module",
+  "author": "Aariv Patel",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/",
+    "bench": "node scripts/run-bench.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

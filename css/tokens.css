@@ -1,0 +1,57 @@
+/* ArmBench design tokens. Every color, font, space and motion value in the
+   stylesheet references a named token from this file. */
+
+:root {
+  /* Surfaces, dark graphite */
+  --color-ground: oklch(0.165 0.005 250);
+  --color-panel: oklch(0.195 0.005 250);
+  --color-raised: oklch(0.235 0.006 250);
+  --color-grid: oklch(0.30 0.006 250 / 0.28);
+
+  /* Ink */
+  --color-ink: oklch(0.945 0.004 250);
+  --color-body-ink: oklch(0.85 0.005 250);
+  --color-muted: oklch(0.70 0.008 250);
+  --color-faint: oklch(0.62 0.008 250);
+
+  /* Hairlines */
+  --color-line: oklch(0.30 0.006 250);
+  --color-line-strong: oklch(0.46 0.008 250);
+  --color-hatch: oklch(0.55 0.01 250 / 0.38);
+
+  /* The single signal accent, instrument amber */
+  --color-accent: oklch(0.795 0.13 82);
+  --color-accent-deep: oklch(0.71 0.135 76);
+  --color-accent-ink: oklch(0.20 0.03 82);
+  --color-accent-dim: oklch(0.795 0.13 82 / 0.13);
+
+  /* Type */
+  --font-display: "Helvetica Neue", "Neue Haas Grotesk Text Pro", Arial, system-ui, sans-serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --text-display: clamp(2.7rem, 5.4vw, 4.4rem);
+  --text-h2: clamp(1.5rem, 2.5vw, 2.05rem);
+  --text-h3: 1.06rem;
+  --text-body: 1rem;
+  --text-small: 0.875rem;
+  --text-micro: 0.78rem;
+
+  /* Space, 4 pt scale */
+  --space-3xs: 4px;
+  --space-2xs: 8px;
+  --space-xs: 12px;
+  --space-s: 16px;
+  --space-m: 24px;
+  --space-l: 32px;
+  --space-xl: 48px;
+  --space-2xl: 72px;
+  --space-3xl: 104px;
+
+  /* Shape and motion */
+  --radius: 2px;
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 420ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
