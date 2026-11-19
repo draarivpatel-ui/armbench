@@ -21,7 +21,7 @@
 import os from 'node:os';
 import {
   planRun, executeStep, estimateFromLocal, estimateLatencyMs,
-  ESTIMATE_MODEL, fmt, fmtInt, VIDEO_CONFIG,
+  ESTIMATE_MODEL, fmt, fmtInt, VIDEO_CONFIG, sizeFlag,
 } from '../js/armbench-core.js';
 
 const args = process.argv.slice(2);
@@ -39,8 +39,8 @@ const sizeArg = argValue('--size');
 const sizes = sizeArg ? [Number.parseInt(sizeArg, 10)] : [256, 512, 1024];
 const asJson = hasFlag('--json');
 
-if (!Number.isFinite(seed) || sizes.some((s) => !Number.isFinite(s))) {
-  console.error('Invalid arguments. Seed and size must be integers.');
+if (!Number.isFinite(seed) || sizes.some((s) => ![256, 512, 1024].includes(s))) {
+  console.error('Invalid arguments. Seed must be an integer and size must be 256, 512 or 1024.');
   process.exit(2);
 }
 
@@ -132,7 +132,7 @@ if (asJson) {
     console.log('  ' + r.label + ': ' + fmtInt(r.opsPerSec) + ' ' + r.unit);
   }
   console.log('');
-  console.log('Reproduce: node scripts/run-bench.mjs --seed ' + seed + ' --iterations ' + iterations + ' --all-sizes');
+  console.log('Reproduce: node scripts/run-bench.mjs --seed ' + seed + ' --iterations ' + iterations + ' ' + sizeFlag(sizes));
   console.log('On an AWS Graviton instance (Node 18+): run the same command with --json and compare.');
   console.log('Honesty statement: every number above is measured on this machine,');
   console.log('except Graviton columns, which are labeled estimates from the model.');
