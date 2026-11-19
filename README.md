@@ -37,7 +37,7 @@ node scripts/run-bench.mjs --size 512 --json        # machine readable
 Run the tests (48 assertions, Node 18 or newer, no packages, no network, about 2 seconds):
 
 ```sh
-node --test tests/
+npm test
 ```
 
 ## Methodology
