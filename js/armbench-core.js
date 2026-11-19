@@ -448,6 +448,11 @@ export function fmtInt(n) {
 /* Report generator                                                     */
 /* ------------------------------------------------------------------ */
 
+/** Bench script flag that reruns exactly these sizes. */
+export function sizeFlag(sizes) {
+  return sizes.length === 1 ? '--size ' + sizes[0] : '--all-sizes';
+}
+
 /**
  * Build the copyable methodology and results report. `rows` are measured
  * result rows from executeStep, `env` describes the host, `meta` carries the
@@ -497,7 +502,7 @@ export function generateReport(rows, env, meta) {
   lines.push('');
   lines.push('5. Reproduce');
   lines.push('Browser: serve this folder statically (for example python3 -m http.server 8000), open the page, keep the same seed and iteration count, press Run');
-  lines.push('Node: node scripts/run-bench.mjs --seed ' + meta.seed + ' --iterations ' + meta.iterations + ' --all-sizes');
+  lines.push('Node: node scripts/run-bench.mjs --seed ' + meta.seed + ' --iterations ' + meta.iterations + ' ' + sizeFlag(meta.sizes));
   lines.push('Graviton plug in point: on any AWS Graviton Linux instance with Node 18 or newer, run the same Node command with --json and compare against section 2');
   lines.push('');
   lines.push('Honesty Statement');
