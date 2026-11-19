@@ -109,8 +109,8 @@ test('report contains the estimate model, assumptions and the honesty statement'
   assert.ok(text.includes('No estimate is presented as a measurement'));
 });
 
-test('report includes reproducible commands with the same seed and iterations', () => {
-  const text = generateReport(sampleRows(), sampleEnv(), sampleMeta());
+test('report includes reproducible commands with the same seed, iterations and sizes', () => {
+  const text = generateReport(sampleRows(), sampleEnv(), { ...sampleMeta(), sizes: [256, 512, 1024] });
   assert.ok(text.includes('node scripts/run-bench.mjs --seed 1337 --iterations 5 --all-sizes'));
   assert.ok(text.includes('--json'));
   assert.ok(text.includes('python3 -m http.server 8000'));
