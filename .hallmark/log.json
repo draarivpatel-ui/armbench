@@ -4,6 +4,6 @@
     "macrostructure": "Workbench",
     "theme": "Terminal, amber signal variant per brief",
     "enrichment": "none",
-    "brief": "ArmBench, Arm image and video workload bench for the OpenCV AI Competition 2026"
+    "brief": "ArmBench, Arm image and video workload bench for the OpenCV computer vision competition 2026"
   }
 ]

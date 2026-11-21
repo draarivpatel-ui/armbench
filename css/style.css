@@ -142,12 +142,6 @@ kbd {
   color: var(--color-accent);
 }
 
-.brand-sub {
-  font-family: var(--font-mono);
-  font-size: var(--text-micro);
-  color: var(--color-muted);
-}
-
 .panel-nav {
   margin-inline-start: auto;
 }
@@ -276,13 +270,6 @@ body.tab-hidden .scanline {
   color: var(--color-accent);
 }
 
-.hero .lede {
-  font-size: 1.06rem;
-  color: var(--color-muted);
-  max-width: 54ch;
-  margin: 0;
-}
-
 .ledger {
   border: 1px solid var(--color-line);
   border-radius: var(--radius);
@@ -361,12 +348,6 @@ body.tab-hidden .scanline {
   font-size: var(--text-h2);
   font-weight: 700;
   letter-spacing: -0.015em;
-}
-
-.panel-lede {
-  color: var(--color-muted);
-  margin: 0;
-  flex-basis: 100%;
 }
 
 h3.sub {
@@ -977,5 +958,110 @@ pre.code .cmd {
   .btn:hover:not(:disabled),
   .btn:active {
     transform: none;
+  }
+}
+
+/* Timing telemetry and shortcuts ------------------------------------------- */
+
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: var(--space-m);
+  align-items: start;
+}
+
+.telemetry-card {
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: var(--space-s);
+}
+
+.telemetry-card .field {
+  display: block;
+  margin-bottom: var(--space-2xs);
+}
+
+.telemetry-card select {
+  width: 100%;
+  margin-bottom: var(--space-xs);
+}
+
+.badge--variable {
+  color: var(--color-body-ink);
+  border-color: var(--color-line-strong);
+  background: var(--color-raised);
+}
+
+.badge--noisy {
+  color: var(--color-ink);
+  border: 1px dashed var(--color-line-strong);
+  background-image: repeating-linear-gradient(135deg, var(--color-hatch) 0 1px, transparent 1px 5px);
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  padding: 1px 4px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius);
+  background: var(--color-raised);
+}
+
+#shortcuts-dialog {
+  background: var(--color-panel);
+  color: var(--color-body-ink);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius);
+  padding: var(--space-m);
+  max-width: min(92vw, 34rem);
+}
+
+#shortcuts-dialog::backdrop {
+  background: rgb(0 0 0 / 0.7);
+}
+
+#shortcuts-dialog h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  margin: 0 0 var(--space-s);
+  color: var(--color-ink);
+}
+
+.shortcut-list > div {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: var(--space-2xs);
+  padding: var(--space-3xs) 0;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.shortcut-list dt { font-family: var(--font-mono); }
+.shortcut-list dd { margin: 0; }
+
+.shortcut-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2xs);
+  font-size: var(--text-small);
+  color: var(--color-body-ink);
+  margin: var(--space-s) 0;
+  line-height: 1.45;
+}
+
+.shortcut-toggle input {
+  margin-top: 3px;
+  accent-color: var(--color-accent);
+  flex: none;
+}
+
+.label-block {
+  display: block;
+  margin-bottom: var(--space-2xs);
+}
+
+@media (max-width: 900px) {
+  .telemetry-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

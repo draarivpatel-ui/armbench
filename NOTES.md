@@ -57,7 +57,7 @@ Every Graviton column is `local x 0.8125 x 0.75 x 1.0` and carries an Estimate l
 3. Browser timings vary run to run with JIT state, tab throttling and system load. The harness controls what it can: deterministic seeded inputs, fixed iteration counts, one excluded warmup pass, and a published budget guard. Exact equality across runs is not claimed and would be dishonest.
 4. The kernels are portable JavaScript reference implementations, not tuned NEON or WebAssembly SIMD pipelines, so absolute figures understate what an optimized build could reach. The point of the project is the measurement method and the honesty of the comparison, not peak numbers.
 5. The chart normalizes bars within each workload group because the six workloads operate at different scales; the table is the source of exact values, and the note under the chart says so.
-6. Verification was code level only (test suite, syntax checks, real script runs, copy scans) because the build environment had no browser available. The page is served through a static server when demoing, since module scripts do not run from a file:// double click; an inline banner explains this if it happens.
+6. Verification was code level only (test suite, syntax checks, real script runs, copy scans) because the build environment had no browser available. The page is served through a static server when demoing, since module scripts do not run from a file:// double click; an in page banner explains this if it happens.
 
 ## Devpost Bullets
 
@@ -83,3 +83,39 @@ A presentation only pass over the deployed page. No kernel, timing, or estimate 
 - Verified: no horizontal page overflow at 320 px. The wide tables scroll inside their own focusable regions instead of stretching the page. Reduced motion stops the sweep and the button lifts.
 - Residual risk: module scripts need a static server. Opening index.html from file:// shows the page's own banner explaining this; the Node bench works without a server.
 - Tests before the pass: 48 passed, 0 failed. Tests after: 48 passed, 0 failed.
+
+## Hardening And Adversarial Pass, 2026-11-21
+
+A correctness and honesty pass over the whole repo, followed by an independent
+adversarial review and a fix round. `node --test tests/`, Node v26.8.1: 198
+tests, 198 pass, 0 fail, 0 skipped.
+
+What the pass fixed:
+
+- The 12 million pixel budget claim was false for any size above about 3464 px,
+  because the per step clamp forced one timed call even when one call alone
+  exceeded the budget. planRun now refuses such sizes, and refuses a budget too
+  small for one video pipeline pass, so the never exceeds claim holds.
+- A single timed iteration used to earn a `stable` badge and a `steady` verdict
+  from zero dispersion evidence. One sample now reports unavailable and is
+  excluded from the run verdict instead of manufacturing repeatability.
+- The generated report printed `| Measured` beside every row regardless of
+  basis; it now labels each row from its real basis flag. It also reports the
+  effective per step iteration counts when the pixel budget clamped them,
+  instead of claiming the requested count ran everywhere.
+- Iterations were only capped by the pixel budget, so a 1 px image with a huge
+  request could schedule 12 million near free timed calls. Iterations are also
+  capped at 10,000 per step.
+- String, NaN and infinite seeds were accepted by planRun and silently changed
+  the video frame sequence; seeds must now be finite, and the video pipeline
+  coerces once before the frame loop.
+- The Node runner used to run the whole bench on `--help`, ignore `--flag=value`
+  syntax, and silently coerce malformed numbers. Flags now parse strictly,
+  `-h` and `--help` print usage, and unknown or malformed arguments exit 2.
+- Held shortcut keys fired downloads and clipboard writes on every key repeat;
+  auto repeated keydowns are now ignored.
+- The video row's pixel accounting, compare caption, and per cell unit labels
+  now say pipelines/sec and count all eight frames per pass.
+- Regression coverage for every reproduced defect lives in
+  `tests/hardening.test.mjs`; test file probe literals are code point decoded
+  so the self scanners cannot flag the suite itself.

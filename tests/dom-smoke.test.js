@@ -98,7 +98,8 @@ test('DOM Smoke 08: every aria-labelledby and label[for] in index.html resolves 
 test('DOM Smoke 09: all DOM IDs wired in js/app.js exist in index.html', () => {
   const htmlIds = new Set([...indexHtml.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
   const boundIds = [...appJs.matchAll(/\$\(\s*'#([^']+)'\s*\)/g)].map((m) => m[1]);
-  assert.equal(boundIds.length, 23);
+  assert.ok(boundIds.length >= 23, 'the app binds at least its original control set');
+  assert.equal(new Set(boundIds).size, boundIds.length, 'no duplicate bindings');
   for (const id of boundIds) {
     assert.ok(htmlIds.has(id), `ID #${id} queried in js/app.js is missing from index.html`);
   }

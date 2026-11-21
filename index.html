@@ -4,13 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ArmBench, An Arm Image And Video Workload Bench</title>
-  <meta name="description" content="ArmBench times real image and video kernels on the local Arm CPU in your browser and compares the readings with clearly labeled cloud estimates. Built by Aariv Patel for the OpenCV AI Competition 2026." />
+  <meta name="description" content="ArmBench times real image and video kernels on the local Arm CPU in your browser and compares the readings with clearly labeled cloud estimates. Built by Aariv Patel for the OpenCV computer vision competition 2026." />
   <meta property="og:title" content="ArmBench, An Arm Image And Video Workload Bench" />
-  <meta property="og:description" content="ArmBench times real image and video kernels on the local Arm CPU in your browser and compares the readings with clearly labeled cloud estimates. Built by Aariv Patel for the OpenCV AI Competition 2026." />
+  <meta property="og:description" content="ArmBench times real image and video kernels on the local Arm CPU in your browser and compares the readings with clearly labeled cloud estimates. Built by Aariv Patel for the OpenCV computer vision competition 2026." />
   <meta property="og:type" content="website" />
   <meta name="robots" content="index, follow" />
   <meta name="color-scheme" content="dark" />
   <meta name="theme-color" content="#17171b" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2317171b'/%3E%3Crect x='5.5' y='5.5' width='21' height='21' fill='none' stroke='%238a8a93' stroke-width='1'/%3E%3Crect x='12' y='12' width='8' height='8' fill='%23f2c14e'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="css/tokens.css" />
   <link rel="stylesheet" href="css/style.css" />
@@ -22,17 +23,17 @@
     <div class="frame">
       <div class="masthead-row">
         <p class="brand"><span class="tick" aria-hidden="true"></span>Arm<em>Bench</em></p>
-        <p class="brand-sub">Image And Video Workload Bench For Arm</p>
         <nav class="panel-nav" aria-label="Panel Navigation">
           <ol>
             <li><a href="#bench"><span class="no">01</span>Workload Bench</a></li>
             <li><a href="#compare"><span class="no">02</span>Baseline Compare</a></li>
-            <li><a href="#environment"><span class="no">03</span>Environment Card</a></li>
-            <li><a href="#report"><span class="no">04</span>Report Export</a></li>
+            <li><a href="#telemetry"><span class="no">03</span>Timing Telemetry</a></li>
+            <li><a href="#environment"><span class="no">04</span>Environment Card</a></li>
+            <li><a href="#report"><span class="no">05</span>Report Export</a></li>
           </ol>
         </nav>
       </div>
-      <p class="masthead-meta">An entry for the OpenCV AI Competition 2026 by Aariv Patel. Static page, zero dependencies, no network calls.</p>
+      <p class="masthead-meta">An entry for the OpenCV computer vision competition 2026 by Aariv Patel. Static page, zero dependencies, no network calls. Press <kbd>?</kbd> for keyboard shortcuts.</p>
     </div>
   </header>
 
@@ -52,7 +53,6 @@
       <div class="hero-grid">
         <div>
           <h1 id="hero-title">Measured On This Machine.<br /><span class="lit">Estimated For The Cloud.</span></h1>
-          <p class="lede">ArmBench times real image and video kernels on this machine's Arm CPU, then sets the readings beside cloud figures that are always labeled as estimates. Nothing on this page presents a projection as a measurement.</p>
         </div>
         <dl class="ledger" aria-label="Honesty Ledger">
           <div class="ledger-row">
@@ -79,7 +79,6 @@
         <div class="panel-head">
           <span class="panel-no" aria-hidden="true">01</span>
           <h2 id="bench-title">Workload Bench</h2>
-          <p class="panel-lede">Run the kernels on this machine. Pick a size and an iteration count, press Run, and every number in the results table comes from that live run.</p>
         </div>
 
         <div class="bench-grid">
@@ -104,8 +103,10 @@
               </div>
               <div class="btn-row">
                 <button type="button" id="run-btn" class="btn btn-primary">Run Bench</button>
+                <button type="button" id="cancel-btn" class="btn btn-ghost" disabled>Cancel</button>
+                <button type="button" id="shortcuts-btn" class="btn btn-ghost">Shortcuts</button>
               </div>
-              <p class="controls-note">One warmup pass runs uncounted before timing. A budget guard caps a timed pass at 12 million pixels, so a full run stays under about ten seconds.</p>
+              <p class="controls-note">One warmup pass runs uncounted before timing. A budget guard caps the measured calls of one pass at 12 million pixels, so a full run stays under about ten seconds. Shortcuts: <kbd>R</kbd> runs, <kbd>E</kbd> exports a report, <kbd>?</kbd> shows all keys. Single-key shortcuts can be turned off inside the list. A run can be cancelled between steps.</p>
             </div>
 
             <h3 class="sub">Host Specs</h3>
@@ -174,12 +175,11 @@
         <div class="panel-head">
           <span class="panel-no" aria-hidden="true">02</span>
           <h2 id="compare-title">Baseline Compare</h2>
-          <p class="panel-lede">Local readings beside projected Graviton figures. Solid cells are measurements from the latest run. Hatched cells carry the Estimate badge and are never measurements. This table uses the largest image size from the latest run.</p>
         </div>
 
         <div class="table-scroll" role="region" aria-label="Baseline Comparison Table" tabindex="0">
           <table>
-            <caption>Measured local throughput against estimated Graviton throughput. The estimate factor is the same for every row because the reference kernels are single threaded.</caption>
+            <caption>Measured local throughput against estimated Graviton throughput at the largest image size in the latest run, plus the fixed eight frame video pipeline. Solid cells are measurements; hatched cells carry the Estimate badge and are never measurements. The estimate factor is the same for every row because the reference kernels are single threaded.</caption>
             <thead>
               <tr>
                 <th scope="col">Workload</th>
@@ -211,12 +211,82 @@
       </div>
     </section>
 
-    <section class="panel" id="environment" aria-labelledby="environment-title">
+    <section class="panel" id="telemetry" aria-labelledby="telemetry-title">
       <div class="frame">
         <div class="panel-head">
           <span class="panel-no" aria-hidden="true">03</span>
+          <h2 id="telemetry-title">Timing Telemetry</h2>
+        </div>
+
+        <div class="telemetry-grid">
+          <div class="telemetry-card">
+            <h3 class="sub">Run Stability</h3>
+            <dl class="spec-list" aria-label="Run Stability Readout">
+              <div><dt>Rows With Dispersion</dt><dd id="tm-count">No run yet</dd></div>
+              <div><dt>Mean Coefficient Of Variation</dt><dd id="tm-mean-cv">No run yet</dd></div>
+              <div><dt>Worst Coefficient Of Variation</dt><dd id="tm-worst-cv">No run yet</dd></div>
+              <div><dt>Verdict</dt><dd id="tm-verdict">No run yet</dd></div>
+            </dl>
+            <p class="controls-note">A coefficient of variation at or below 10 percent is steady, up to 25 percent is variable, and above that is noisy. These bands describe the samples, not the correctness of the kernels.</p>
+          </div>
+          <div class="telemetry-card">
+            <h3 class="sub">Measured Scaling</h3>
+            <label class="field" for="scaling-workload">Workload for size comparison</label>
+            <select id="scaling-workload">
+              <option value="resize">Resize (Bilinear, Half Size)</option>
+              <option value="grayscale">Grayscale (Rec. 709 Luma)</option>
+              <option value="blur">Convolution Blur (3 by 3 Box)</option>
+              <option value="sobel">Edge Detection (Sobel Magnitude)</option>
+              <option value="histogram">Histogram (256 Bins, Luma)</option>
+            </select>
+            <div class="table-scroll" role="region" aria-label="Measured Scaling Table" tabindex="0" data-region="scaling">
+              <table>
+                <caption>Throughput ratios computed only from rows measured in the latest run. Blank cells mean the size was not run.</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Comparison</th>
+                    <th scope="col" class="num">Smaller Size Ops Per Sec</th>
+                    <th scope="col" class="num">Larger Size Ops Per Sec</th>
+                    <th scope="col" class="num">Measured Ratio</th>
+                  </tr>
+                </thead>
+                <tbody id="scaling-body">
+                  <tr class="empty-row"><td colspan="4">No run yet. Run all sizes to see measured scaling ratios.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <h3 class="sub">Per Row Dispersion</h3>
+        <div class="table-scroll" role="region" aria-label="Per Row Dispersion Table" tabindex="0">
+          <table>
+            <caption>Standard deviation, coefficient of variation, 95th percentile and trimmed mean for every timed pass in the latest run.</caption>
+            <thead>
+              <tr>
+                <th scope="col">Workload</th>
+                <th scope="col">Image</th>
+                <th scope="col" class="num">Mean Ms</th>
+                <th scope="col" class="num">Std Dev Ms</th>
+                <th scope="col" class="num">Cv Percent</th>
+                <th scope="col" class="num">P95 Ms</th>
+                <th scope="col" class="num">Trimmed Mean Ms</th>
+                <th scope="col">Stability</th>
+              </tr>
+            </thead>
+            <tbody id="telemetry-body">
+              <tr class="empty-row"><td colspan="8">No run yet. This table fills in after the first live run.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="environment" aria-labelledby="environment-title">
+      <div class="frame">
+        <div class="panel-head">
+          <span class="panel-no" aria-hidden="true">04</span>
           <h2 id="environment-title">Environment Card</h2>
-          <p class="panel-lede">A plain statement of where these numbers come from and where they do not come from.</p>
         </div>
 
         <div class="env-grid">
@@ -263,9 +333,8 @@
     <section class="panel" id="report" aria-labelledby="report-title">
       <div class="frame">
         <div class="panel-head">
-          <span class="panel-no" aria-hidden="true">04</span>
+          <span class="panel-no" aria-hidden="true">05</span>
           <h2 id="report-title">Report Export</h2>
-          <p class="panel-lede">A copyable methodology block a judge can rerun. The report regenerates from the most recent completed run.</p>
         </div>
 
         <div class="report-actions">
@@ -273,8 +342,11 @@
           <button type="button" id="copy-report-btn" class="btn btn-ghost" disabled>Copy Report</button>
           <span class="copied-note" id="copied-note" role="status" aria-live="polite"></span>
         </div>
-        <p class="report-hint">Generate stays disabled until a run completes, because a report without a run would be fiction. The report includes the honesty statement, the estimate assumptions and the exact commands to reproduce.</p>
-        <label class="mono-label" for="report-output" style="display:block;margin-bottom:8px;">Generated Report</label>
+        <div class="report-actions">
+          <button type="button" id="download-report-btn" class="btn btn-ghost" disabled>Download Report</button>
+        </div>
+        <p class="report-hint">Generate stays disabled until a run completes, because a report without a run would be fiction. The report includes the honesty statement, the timing dispersion, the estimate assumptions and the exact commands to reproduce. Download saves the same text as a plain text file.</p>
+        <label class="mono-label label-block" for="report-output">Generated Report</label>
         <textarea id="report-output" readonly spellcheck="false" aria-describedby="report-hint-text">No report yet. Press Run Bench in the Workload Bench panel, then Generate Report.</textarea>
         <p class="report-hint" id="report-hint-text">The text area is read only. Copy places the full report on the clipboard without altering it.</p>
 
@@ -287,25 +359,34 @@
 
   <footer class="footer">
     <div class="frame">
-      <p>ArmBench by Aariv Patel. An entry for the OpenCV AI Competition 2026. Static page, zero dependencies, no network calls, no tracking.</p>
+      <p>ArmBench by Aariv Patel. An entry for the OpenCV computer vision competition 2026. Static page, zero dependencies, no network calls, no tracking.</p>
       <p>Measured numbers come from live timed runs. Estimated numbers carry the Estimate badge and list their assumptions. AWS Graviton was not used.</p>
     </div>
   </footer>
+
+  <dialog id="shortcuts-dialog" aria-labelledby="shortcuts-title">
+    <h2 id="shortcuts-title">Keyboard Shortcuts</h2>
+    <dl class="shortcut-list">
+      <div><dt><kbd>R</kbd></dt><dd>Run the bench with the current seed, size and iteration count</dd></div>
+      <div><dt><kbd>E</kbd></dt><dd>Generate and download the report after a run</dd></div>
+      <div><dt><kbd>G</kbd></dt><dd>Generate the report into the text area</dd></div>
+      <div><dt><kbd>C</kbd></dt><dd>Copy the generated report to the clipboard</dd></div>
+      <div><dt><kbd>?</kbd> or <kbd>/</kbd></dt><dd>Open this shortcut list</dd></div>
+      <div><dt><kbd>Esc</kbd></dt><dd>Close this dialog</dd></div>
+    </dl>
+    <p class="controls-note">Shortcuts are ignored while a text field, select or button has focus, so typing a seed never triggers a run.</p>
+    <label class="shortcut-toggle">
+      <input type="checkbox" id="shortcuts-toggle" checked />
+      Enable single-key shortcuts. Turn this off if your own tools or assistive software use plain character keys; every action stays available through its button.
+    </label>
+    <button type="button" id="shortcuts-close" class="btn btn-primary">Close</button>
+  </dialog>
 
   <div class="module-banner" id="module-banner">
     This page uses module scripts, which need a static server. Serve this folder and reload, for example with <code>python3 -m http.server 8000</code>, then open <code>http://localhost:8000</code>. The Node script scripts/run-bench.mjs works without a server.
   </div>
 
   <script type="module" src="js/app.js"></script>
-  <script>
-    window.addEventListener('load', function () {
-      window.setTimeout(function () {
-        if (!window.__ARMBENCH_LOADED__) {
-          var banner = document.getElementById('module-banner');
-          if (banner) banner.classList.add('is-visible');
-        }
-      }, 1200);
-    });
-  </script>
+  <script src="js/module-check.js"></script>
 </body>
 </html>

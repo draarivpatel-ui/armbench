@@ -11,36 +11,96 @@
  *   node scripts/run-bench.mjs --seed 1337 --iterations 5 --all-sizes
  *   node scripts/run-bench.mjs --size 512 --json
  *
- * Flags:
- *   --seed N         deterministic input seed, default 1337
- *   --size N         one square size in pixels: 256, 512 or 1024
+ * Flags (each takes either --flag value or --flag=value):
+ *   --seed N         deterministic input seed, an integer, default 1337
+ *   --size N         one square size in pixels, within the pixel cap
  *   --all-sizes      run 256, 512 and 1024 (default)
- *   --iterations N   timed iterations per workload, default 5
+ *   --iterations N   timed iterations per workload, 1 to 12, default 5
  *   --json           print machine readable results instead of a table
+ *   -h, --help       print usage and exit
+ * Unknown flags, malformed integers and missing values exit with status 2
+ * rather than silently running a different benchmark than requested.
  */
 import os from 'node:os';
 import {
-  planRun, executeStep, estimateFromLocal, estimateLatencyMs,
-  ESTIMATE_MODEL, fmt, fmtInt, VIDEO_CONFIG,
+  planRun, executeStep, estimateFromLocal, estimateLatencyMs, runTelemetry,
+  ESTIMATE_MODEL, fmt, fmtInt, VIDEO_CONFIG, MAX_IMAGE_PIXELS,
 } from '../js/armbench-core.js';
 
+const USAGE = `ArmBench Node runner.
+Usage:
+  node scripts/run-bench.mjs
+  node scripts/run-bench.mjs --seed 1337 --iterations 5 --all-sizes
+  node scripts/run-bench.mjs --size 512 --json
+Flags (each takes either --flag value or --flag=value):
+  --seed N         deterministic input seed, an integer, default 1337
+  --size N         one square size in pixels, within the pixel cap
+  --all-sizes      run 256, 512 and 1024 (default)
+  --iterations N   timed iterations per workload, 1 to 12, default 5
+  --json           print machine readable results instead of a table
+  -h, --help       print this text`;
+
+function parseArgs(argv) {
+  const opts = { seed: '1337', iterations: '5', size: null, json: false };
+  const errors = [];
+  const takesValue = new Set(['--seed', '--iterations', '--size']);
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '-h' || arg === '--help') return { help: true };
+    let flag = arg;
+    let inline;
+    const eq = arg.indexOf('=');
+    if (eq >= 0) {
+      flag = arg.slice(0, eq);
+      inline = arg.slice(eq + 1);
+    }
+    if (takesValue.has(flag)) {
+      let value = inline;
+      if (value === undefined && argv[i + 1] !== undefined && !argv[i + 1].startsWith('--')) {
+        value = argv[++i];
+      }
+      if (value === undefined) {
+        errors.push(flag + ' needs an integer value');
+        continue;
+      }
+      if (!/^-?\d+$/.test(value)) {
+        errors.push(flag + ' must be an integer, got ' + JSON.stringify(value));
+        continue;
+      }
+      opts[flag.slice(2)] = value;
+    } else if (flag === '--all-sizes' || flag === '--json') {
+      if (inline !== undefined) {
+        errors.push(flag + ' takes no value');
+        continue;
+      }
+      if (flag === '--json') opts.json = true;
+    } else {
+      errors.push('unknown flag ' + JSON.stringify(arg));
+    }
+  }
+  return { help: false, opts, errors };
+}
+
 const args = process.argv.slice(2);
-function argValue(flag) {
-  const i = args.indexOf(flag);
-  return i >= 0 ? args[i + 1] : undefined;
+const parsed = parseArgs(args);
+if (parsed.help) {
+  console.log(USAGE);
+  process.exit(0);
 }
-function hasFlag(flag) {
-  return args.includes(flag);
+if (parsed.errors.length) {
+  for (const e of parsed.errors) console.error('Invalid argument: ' + e);
+  process.exit(2);
 }
 
-const seed = Number.parseInt(argValue('--seed') ?? '1337', 10);
-const iterations = Math.max(1, Math.min(12, Number.parseInt(argValue('--iterations') ?? '5', 10) || 5));
-const sizeArg = argValue('--size');
-const sizes = sizeArg ? [Number.parseInt(sizeArg, 10)] : [256, 512, 1024];
-const asJson = hasFlag('--json');
+const seed = Number.parseInt(parsed.opts.seed, 10);
+const iterations = Number.parseInt(parsed.opts.iterations, 10);
+const sizes = parsed.opts.size !== null ? [Number.parseInt(parsed.opts.size, 10)] : [256, 512, 1024];
+const asJson = parsed.opts.json;
 
-if (!Number.isFinite(seed) || sizes.some((s) => !Number.isFinite(s))) {
-  console.error('Invalid arguments. Seed and size must be integers.');
+if (!Number.isInteger(seed)
+  || !Number.isInteger(iterations) || iterations < 1 || iterations > 12
+  || sizes.some((s) => !Number.isInteger(s) || s < 1 || s * s > MAX_IMAGE_PIXELS)) {
+  console.error('Invalid arguments. Seed must be an integer, iterations must be an integer from 1 to 12, and each size a positive integer within the pixel cap.');
   process.exit(2);
 }
 
@@ -55,7 +115,13 @@ const env = {
   cores: os.cpus().length,
 };
 
-const steps = planRun({ seed, sizes, iterations });
+let steps;
+try {
+  steps = planRun({ seed, sizes, iterations });
+} catch (err) {
+  console.error('Invalid arguments. ' + err.message);
+  process.exit(2);
+}
 const rows = [];
 for (const step of steps) {
   rows.push(executeStep(step));
@@ -79,12 +145,20 @@ if (asJson) {
     },
     results: rows.map((r) => ({
       ...r,
+      dispersion: {
+        stdDevMs: r.stdDevMs,
+        cvPercent: r.cvPercent,
+        p95Ms: r.p95Ms,
+        trimmedMeanMs: r.trimmedMeanMs,
+        stability: r.stability,
+      },
       cloudEstimate: {
         isEstimate: true,
         opsPerSec: estimateFromLocal(r.opsPerSec ?? 0).opsPerSec,
         meanMs: estimateLatencyMs(r.meanMs),
       },
     })),
+    dispersionSummary: runTelemetry(rows),
   };
   console.log(JSON.stringify(payload, null, 2));
 } else {
@@ -125,6 +199,12 @@ if (asJson) {
   for (const a of ESTIMATE_MODEL.assumptions) {
     console.log('Assumption, ' + a.name + ': ' + a.detail);
   }
+  console.log('');
+  const disp = runTelemetry(rows);
+  console.log('Timing dispersion (measured): ' + disp.count + ' rows, mean cv ' +
+    (disp.meanCvPercent === null ? 'n/a' : fmt(disp.meanCvPercent, 1) + ' percent') +
+    ', worst cv ' + (disp.worstCvPercent === null ? 'n/a' : fmt(disp.worstCvPercent, 1) + ' percent') +
+    ', verdict ' + disp.verdict);
   console.log('');
   console.log('Largest size throughput summary (measured locally):');
   const big = rows.filter((r) => r.workloadId !== 'video' && r.size === Math.max(...sizes));

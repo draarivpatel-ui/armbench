@@ -7,6 +7,7 @@
 import {
   makeImage, planRun, executeStep, workloadById,
   ESTIMATE_MODEL, estimateFromLocal, estimateFactor, badgeFor, BASIS,
+  runTelemetry, speedupBetween, timingStats,
   generateReport as buildReportText,
   fmt, fmtInt,
 } from './armbench-core.js';
@@ -39,12 +40,51 @@ const els = {
   copyBtn: $('#copy-report-btn'),
   reportOutput: $('#report-output'),
   copiedNote: $('#copied-note'),
+  cancelBtn: $('#cancel-btn'),
+  downloadBtn: $('#download-report-btn'),
+  telemetryBody: $('#telemetry-body'),
+  scalingBody: $('#scaling-body'),
+  scalingWorkload: $('#scaling-workload'),
+  tmCount: $('#tm-count'),
+  tmMeanCv: $('#tm-mean-cv'),
+  tmWorstCv: $('#tm-worst-cv'),
+  tmVerdict: $('#tm-verdict'),
+  shortcutsDialog: $('#shortcuts-dialog'),
+  shortcutsClose: $('#shortcuts-close'),
+  shortcutsBtn: $('#shortcuts-btn'),
+  shortcutsToggle: $('#shortcuts-toggle'),
 };
 
 const state = {
   running: false,
+  cancelled: false,
   lastRun: null,
+  shortcutsEnabled: true,
 };
+
+/* Single-key shortcuts can be turned off, which keeps WCAG 2.1.4 satisfied
+   for users whose own tools listen on plain character keys. The choice is
+   remembered in local storage when the runtime offers it. */
+const SHORTCUTS_KEY = 'armbench.shortcutsEnabled';
+
+function loadShortcutPref() {
+  try {
+    const raw = window.localStorage ? window.localStorage.getItem(SHORTCUTS_KEY) : null;
+    return raw !== 'off';
+  } catch (err) {
+    return true;
+  }
+}
+
+function saveShortcutPref(enabled) {
+  try {
+    if (window.localStorage) {
+      window.localStorage.setItem(SHORTCUTS_KEY, enabled ? 'on' : 'off');
+    }
+  } catch (err) {
+    /* Storage is optional; the toggle still applies for the session. */
+  }
+}
 
 /* Host readout, reported verbatim by the runtime ------------------------ */
 
@@ -116,6 +156,7 @@ function setControlsDisabled(disabled) {
   els.seedInput.disabled = disabled;
   els.runBtn.disabled = disabled;
   els.runBtn.textContent = disabled ? 'Running' : 'Run Bench';
+  els.cancelBtn.disabled = !disabled;
 }
 
 function buildQueue(steps) {
@@ -160,38 +201,68 @@ async function runBench() {
   els.seedInput.value = String(seed);
 
   state.running = true;
+  state.cancelled = false;
   setControlsDisabled(true);
   els.roState.textContent = 'Running';
+  els.genBtn.disabled = true;
+  els.copyBtn.disabled = true;
+  els.downloadBtn.disabled = true;
   const startedAt = performance.now();
   const steps = planRun({ seed, sizes, iterations });
   buildQueue(steps);
   status('Run started with seed ' + seed + '. One warmup pass per workload is excluded from timing.');
 
   const rows = [];
-  for (let i = 0; i < steps.length; i++) {
-    const step = steps[i];
-    const wl = workloadById(step.workloadId);
-    const where = step.workloadId === 'video' ? 'the 8 frame pipeline' : step.size + ' px';
-    markQueue(i, 'running');
-    status('Running ' + wl.label + ' at ' + where + ', ' + step.iterations + ' timed iterations.');
-    await yieldToUi();
-    const row = executeStep(step);
-    rows.push(row);
-    markQueue(i, 'done', row);
-    await yieldToUi();
+  let cancelled = false;
+  let failure = null;
+  try {
+    for (let i = 0; i < steps.length; i++) {
+      if (state.cancelled) { cancelled = true; break; }
+      const step = steps[i];
+      const wl = workloadById(step.workloadId);
+      const where = step.workloadId === 'video' ? 'the 8 frame pipeline' : step.size + ' px';
+      markQueue(i, 'running');
+      status('Running ' + wl.label + ' at ' + where + ', ' + step.iterations + ' timed iterations.');
+      await yieldToUi();
+      if (state.cancelled) { cancelled = true; break; }
+      const row = executeStep(step);
+      rows.push(row);
+      markQueue(i, 'done', row);
+      await yieldToUi();
+    }
+  } catch (err) {
+    failure = err;
+  } finally {
+    setControlsDisabled(false);
+    state.running = false;
+  }
+
+  if (failure) {
+    els.roState.textContent = 'Ready';
+    status('Run stopped after ' + rows.length + ' completed steps: ' +
+      (failure && failure.message ? failure.message : 'engine error') +
+      '. No partial or synthesized report was produced.');
+    return;
+  }
+
+  if (cancelled || rows.length === 0) {
+    els.roState.textContent = 'Ready';
+    status('Run cancelled after ' + rows.length + ' completed steps. No partial or synthesized report was produced.');
+    return;
   }
 
   const wallSeconds = (performance.now() - startedAt) / 1000;
   state.lastRun = { at: new Date().toISOString(), seed, sizes, iterations, rows };
   renderResults(rows);
   renderCompare();
+  renderTelemetry(rows);
+  renderScaling();
   drawChart();
   els.genBtn.disabled = false;
+  els.downloadBtn.disabled = false;
   els.roState.textContent = 'Ready';
   status('Run complete: ' + rows.length + ' measured readings in ' + fmt(wallSeconds, 1) +
-    ' seconds. Comparison and report are ready. Every reading above is a live measurement.');
-  setControlsDisabled(false);
-  state.running = false;
+    ' seconds. Comparison, telemetry and report are ready. Every reading above is a live measurement.');
 }
 
 /* Results table --------------------------------------------------------------- */
@@ -270,10 +341,11 @@ function renderCompare() {
     tdSize.textContent = r.workloadId === 'video' ? r.size : r.size + ' px';
     tr.append(tdSize);
 
+    const unit = r.workloadId === 'video' ? ' pipelines/sec' : '';
     const tdLocal = document.createElement('td');
     tdLocal.className = 'num';
     const localVal = document.createElement('span');
-    localVal.textContent = fmtInt(r.opsPerSec);
+    localVal.textContent = fmtInt(r.opsPerSec) + unit;
     const localBadge = document.createElement('span');
     localBadge.className = 'badge badge--measured';
     localBadge.textContent = badgeFor(BASIS.MEASURED);
@@ -283,7 +355,7 @@ function renderCompare() {
     const tdEst = document.createElement('td');
     tdEst.className = 'num cell-est';
     const estVal = document.createElement('span');
-    estVal.textContent = fmtInt(est.opsPerSec);
+    estVal.textContent = fmtInt(est.opsPerSec) + unit;
     const estBadge = document.createElement('span');
     estBadge.className = 'badge badge--estimate';
     estBadge.textContent = badgeFor(BASIS.ESTIMATE);
@@ -296,6 +368,86 @@ function renderCompare() {
     tr.append(tdFactor);
 
     tbody.append(tr);
+  }
+}
+
+/* Timing telemetry ------------------------------------------------------------ */
+
+function stabilityClass(stability) {
+  if (stability === 'stable') return 'badge badge--measured';
+  if (stability === 'variable') return 'badge badge--variable';
+  return 'badge badge--noisy';
+}
+
+function renderTelemetry(rows) {
+  const t = runTelemetry(rows);
+  els.tmCount.textContent = String(t.count);
+  els.tmMeanCv.textContent = t.meanCvPercent === null ? 'n/a' : fmt(t.meanCvPercent, 1) + ' percent';
+  els.tmWorstCv.textContent = t.worstCvPercent === null ? 'n/a' : fmt(t.worstCvPercent, 1) + ' percent';
+  els.tmVerdict.textContent = t.verdict;
+
+  const tbody = els.telemetryBody;
+  tbody.textContent = '';
+  for (const r of rows) {
+    const tr = document.createElement('tr');
+    const cells = [
+      r.label,
+      r.workloadId === 'video' ? r.size : r.size + ' px',
+      fmt(r.meanMs, 3),
+      Number.isFinite(r.stdDevMs) ? fmt(r.stdDevMs, 3) : 'n/a',
+      Number.isFinite(r.cvPercent) ? fmt(r.cvPercent, 1) : 'n/a',
+      Number.isFinite(r.p95Ms) ? fmt(r.p95Ms, 3) : 'n/a',
+      Number.isFinite(r.trimmedMeanMs) ? fmt(r.trimmedMeanMs, 3) : 'n/a',
+    ];
+    cells.forEach((text, i) => {
+      const td = document.createElement('td');
+      if (i > 1) td.className = 'num';
+      td.textContent = text;
+      tr.append(td);
+    });
+    const td = document.createElement('td');
+    const badge = document.createElement('span');
+    badge.className = stabilityClass(r.stability);
+    badge.textContent = r.stability;
+    td.append(badge);
+    tr.append(td);
+    tbody.append(tr);
+  }
+  tbody.setAttribute('aria-label', 'Per row dispersion for ' + rows.length + ' measured passes. ' + t.verdict + '.');
+}
+
+function renderScaling() {
+  if (!state.lastRun) return;
+  const rows = state.lastRun.rows;
+  const id = els.scalingWorkload.value;
+  const pairs = [[256, 512], [512, 1024], [256, 1024]];
+  const tbody = els.scalingBody;
+  tbody.textContent = '';
+  let shown = 0;
+  for (const [a, b] of pairs) {
+    const s = speedupBetween(rows, id, a, b);
+    const tr = document.createElement('tr');
+    const name = document.createElement('td');
+    name.textContent = a + ' px versus ' + b + ' px';
+    tr.append(name);
+    for (const val of [s ? s.opsA : null, s ? s.opsB : null, s ? s.ratio : null]) {
+      const td = document.createElement('td');
+      td.className = 'num';
+      td.textContent = val === null ? 'not run' :
+        (val === s.ratio ? fmt(val, 3) + ' x' : fmtInt(val));
+      tr.append(td);
+    }
+    tbody.append(tr);
+    if (s) shown++;
+  }
+  if (shown === 0) {
+    const tr = document.createElement('tr');
+    tr.className = 'empty-row';
+    const td = document.createElement('td');
+    td.colSpan = 4;
+    td.textContent = 'The selected workload was not measured at two comparable sizes. Run all sizes for a full scaling view.';
+    tr.append(td);
+    tbody.replaceChildren(tr);
   }
 }
 
@@ -343,8 +495,12 @@ function drawChart() {
   const canvas = els.chartCanvas;
   const colors = chartColors();
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const w = canvas.clientWidth || canvas.parentElement.clientWidth;
+  const w = canvas.clientWidth || (canvas.parentElement ? canvas.parentElement.clientWidth : 0);
   const h = canvas.clientHeight || 360;
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w < 80 || h < 80) {
+    /* A collapsed or display none canvas has nothing to draw into. */
+    return;
+  }
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
   const ctx = canvas.getContext('2d');
@@ -432,7 +588,7 @@ function drawChart() {
     .join('; ');
   canvas.setAttribute('aria-label',
     'Bar chart comparing measured local throughput with estimated Graviton throughput for ' + rows.length +
-    ' workloads at the largest image size. Values in ops per second: ' + summary +
+    ' workloads at the largest image size plus the fixed video pipeline. Values in ops per second: ' + summary +
     '. Estimated values are projections, not measurements.');
 }
 
@@ -456,6 +612,22 @@ function buildReport() {
   els.reportOutput.value = buildReportText(run.rows, env, meta);
   els.copyBtn.disabled = false;
   els.copiedNote.textContent = 'Report Ready';
+}
+
+async function downloadReport() {
+  if (!state.lastRun) return;
+  if (els.reportOutput.value.startsWith('No report yet')) buildReport();
+  const text = els.reportOutput.value;
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'armbench-report-' + state.lastRun.seed + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  els.copiedNote.textContent = 'Report Downloaded';
 }
 
 async function copyReport() {
@@ -483,9 +655,53 @@ function init() {
   drawChart();
 
   els.runBtn.addEventListener('click', runBench);
+  els.cancelBtn.addEventListener('click', () => {
+    if (state.running) {
+      state.cancelled = true;
+      status('Cancelling after the current step. Completed measurements are kept but no report is issued.');
+    }
+  });
   els.seedInput.addEventListener('change', drawPreview);
   els.genBtn.addEventListener('click', buildReport);
   els.copyBtn.addEventListener('click', copyReport);
+  els.downloadBtn.addEventListener('click', downloadReport);
+  els.scalingWorkload.addEventListener('change', renderScaling);
+  els.shortcutsClose.addEventListener('click', () => els.shortcutsDialog.close());
+  els.shortcutsBtn.addEventListener('click', () => els.shortcutsDialog.showModal());
+
+  state.shortcutsEnabled = loadShortcutPref();
+  els.shortcutsToggle.checked = state.shortcutsEnabled;
+  els.shortcutsToggle.addEventListener('change', () => {
+    state.shortcutsEnabled = els.shortcutsToggle.checked;
+    saveShortcutPref(state.shortcutsEnabled);
+    status(state.shortcutsEnabled
+      ? 'Single-key shortcuts are on. Press ? outside a field for the list.'
+      : 'Single-key shortcuts are off. The Shortcuts button still opens the list.');
+  });
+
+  document.addEventListener('keydown', (event) => {
+    const target = event.target;
+    const tag = target && target.tagName ? target.tagName.toLowerCase() : '';
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    if (tag === 'input' || tag === 'textarea' || tag === 'select' || tag === 'button') return;
+    if (els.shortcutsDialog.open) return;
+    if (!state.shortcutsEnabled) return;
+    if (event.repeat) return;
+    const key = event.key.toLowerCase();
+    if (key === '?' || key === '/') {
+      event.preventDefault();
+      els.shortcutsDialog.showModal();
+    } else if (key === 'r') {
+      event.preventDefault();
+      runBench();
+    } else if (key === 'g') {
+      if (!els.genBtn.disabled) { event.preventDefault(); buildReport(); }
+    } else if (key === 'e') {
+      if (!els.downloadBtn.disabled) { event.preventDefault(); downloadReport(); }
+    } else if (key === 'c') {
+      if (!els.copyBtn.disabled) { event.preventDefault(); copyReport(); }
+    }
+  });
   els.itersInput.addEventListener('change', () => {
     els.itersInput.value = String(clampInt(els.itersInput.value, 1, 8, 5));
   });
