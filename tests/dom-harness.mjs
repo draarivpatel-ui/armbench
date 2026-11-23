@@ -233,6 +233,7 @@ export function boot(options = {}) {
     getElementById(id) { return this._byId.get(id) || null; },
     querySelector(sel) { return this._root.querySelector(sel); },
     querySelectorAll(sel) { return this._root.querySelectorAll(sel); },
+    createElementNS(ns, tag) { const el = new Element(tag, doc); el.namespaceURI = ns; return el; },
     addEventListener(type, fn) { (this._listeners[type] ||= []).push(fn); },
     _listeners: {},
     _byId: new Map(),
@@ -264,6 +265,7 @@ export function boot(options = {}) {
       userAgent: 'node dom harness', platform: 'arm64 test host', hardwareConcurrency: 8,
       clipboard: { writeText: async () => {} },
     },
+    history: { replaceState() {} },
     performance: { now: () => Date.now() },
     getComputedStyle: () => ({ getPropertyValue: () => '#ffffff' }),
     ImageData: class { constructor(data, w, h) { this.data = data; this.width = w; this.height = h; } },
@@ -277,17 +279,23 @@ export function boot(options = {}) {
   };
   sandbox.globalThis = sandbox;
   sandbox.window.document = doc;
+  sandbox.window.location = options.location ||
+    { hash: '', origin: 'http://harness.local', pathname: '/index.html', href: 'http://harness.local/index.html' };
 
-  // Strip the ESM import line and evaluate the app body against the imported core.
-  const body = appJs.replace(/^import\s*\{[\s\S]*?\}\s*from\s*'[^']+';/m, '');
+  // Strip every ESM import line and evaluate the app body against the
+  // imported core and lab modules, concatenated in dependency order.
+  const body = appJs.replace(/^import\s*\{[\s\S]*?\}\s*from\s*'[^']+';/gm, '');
   const core = fs.readFileSync(path.join(ROOT, 'js/armbench-core.js'), 'utf8')
+    .replace(/^export /gm, '');
+  const lab = fs.readFileSync(path.join(ROOT, 'js/bench-lab.js'), 'utf8')
+    .replace(/^import\s*\{[\s\S]*?\}\s*from\s*'[^']+';/gm, '')
     .replace(/^export /gm, '');
   const aliases = `
     const buildReportText = generateReport;
   `;
   const context = vm.createContext(sandbox);
   try {
-    vm.runInContext(core + '\n' + aliases + '\n' + body + '\n;globalThis.__core = { makeImage, planRun, executeStep, workloadById, ESTIMATE_MODEL, estimateFromLocal, estimateFactor, badgeFor, BASIS, runTelemetry, speedupBetween, timingStats, generateReport, fmt, fmtInt };', context, { filename: 'app-boot.js' });
+    vm.runInContext(core + '\n' + lab + '\n' + aliases + '\n' + body + '\n;globalThis.__core = { makeImage, planRun, executeStep, workloadById, ESTIMATE_MODEL, estimateFromLocal, estimateFactor, badgeFor, BASIS, runTelemetry, speedupBetween, timingStats, generateReport, fmt, fmtInt };', context, { filename: 'app-boot.js' });
   } catch (err) {
     errors.push(String(err && err.stack ? err.stack : err));
   }

@@ -25,6 +25,7 @@ const css = fs.readFileSync(path.join(ROOT, 'css/style.css'), 'utf8');
 const tokens = fs.readFileSync(path.join(ROOT, 'css/tokens.css'), 'utf8');
 const appJs = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
 const coreJs = fs.readFileSync(path.join(ROOT, 'js/armbench-core.js'), 'utf8');
+const labJs = fs.readFileSync(path.join(ROOT, 'js/bench-lab.js'), 'utf8');
 const moduleCheckJs = fs.readFileSync(path.join(ROOT, 'js/module-check.js'), 'utf8');
 const runBenchJs = fs.readFileSync(path.join(ROOT, 'scripts/run-bench.mjs'), 'utf8');
 const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
@@ -546,7 +547,7 @@ test('no stylesheet anywhere sets scroll-behavior', () => {
 });
 
 test('shipped text contains no prohibited disclosure wording', () => {
-  const shipped = [html, css, tokens, appJs, coreJs, moduleCheckJs, runBenchJs, readme, notes, devpost].join('\n');
+  const shipped = [html, css, tokens, appJs, coreJs, labJs, moduleCheckJs, runBenchJs, readme, notes, devpost].join('\n');
   const terms = [
     [111, 112, 101, 110, 97, 105],
     [99, 104, 97, 116, 103, 112, 116],
@@ -569,7 +570,8 @@ test('every shipped source file is free of em and en dashes', () => {
   const enDash = decode([0x2013]);
   for (const [name, text] of Object.entries({
     'index.html': html, 'css/style.css': css, 'css/tokens.css': tokens,
-    'js/app.js': appJs, 'js/armbench-core.js': coreJs, 'js/module-check.js': moduleCheckJs,
+    'js/app.js': appJs, 'js/armbench-core.js': coreJs, 'js/bench-lab.js': labJs,
+    'js/module-check.js': moduleCheckJs,
     'scripts/run-bench.mjs': runBenchJs, 'README.md': readme, 'NOTES.md': notes,
     'DEVPOST_UPGRADE.md': devpost,
   })) {

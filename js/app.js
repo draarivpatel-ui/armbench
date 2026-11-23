@@ -11,6 +11,14 @@ import {
   generateReport as buildReportText,
   fmt, fmtInt,
 } from './armbench-core.js';
+import {
+  startComparison, stepComparison, finishComparison, labConfigsFor,
+  measureMachineRoofs, rooflinePosition, analyzeScaling, workloadIntensity,
+  edgeStress, WORKLOAD_MODEL,
+  buildAuditPayload, auditExportJson, auditExportCsv, auditExportMarkdown,
+  verifyAuditJson,
+  encodeBookmark, decodeBookmark, runSelfTests,
+} from './bench-lab.js';
 
 window.__ARMBENCH_LOADED__ = true;
 
@@ -53,12 +61,49 @@ const els = {
   shortcutsClose: $('#shortcuts-close'),
   shortcutsBtn: $('#shortcuts-btn'),
   shortcutsToggle: $('#shortcuts-toggle'),
+  labWorkload: $('#lab-workload'),
+  labSize: $('#lab-size'),
+  labIters: $('#lab-iters'),
+  labRunBtn: $('#lab-run-btn'),
+  labStatus: $('#lab-status'),
+  labConfigBody: $('#lab-config-body'),
+  labFrontierNote: $('#lab-frontier-note'),
+  labChart: $('#lab-chart'),
+  labChartNote: $('#lab-chart-note'),
+  roofIntensity: $('#roof-intensity'),
+  roofMem: $('#roof-mem'),
+  roofCompute: $('#roof-compute'),
+  roofCeiling: $('#roof-ceiling'),
+  roofHeadroom: $('#roof-headroom'),
+  roofBounded: $('#roof-bounded'),
+  labBottleneck: $('#lab-bottleneck'),
+  stressRunBtn: $('#stress-run-btn'),
+  stressStatus: $('#stress-status'),
+  stressBody: $('#stress-body'),
+  auditJsonBtn: $('#audit-json-btn'),
+  auditCsvBtn: $('#audit-csv-btn'),
+  auditMdBtn: $('#audit-md-btn'),
+  auditVerifyBtn: $('#audit-verify-btn'),
+  auditDigest: $('#audit-digest'),
+  auditNote: $('#audit-note'),
+  bookmarkLink: $('#bookmark-link'),
+  bookmarkCopyBtn: $('#bookmark-copy-btn'),
+  bookmarkNote: $('#bookmark-note'),
+  selftestRunBtn: $('#selftest-run-btn'),
+  selftestSummary: $('#selftest-summary'),
+  selftestBody: $('#selftest-body'),
 };
 
 const state = {
   running: false,
   cancelled: false,
   lastRun: null,
+  lastLab: null,
+  lastStress: null,
+  roofs: null,
+  lastAudit: null,
+  labRunning: false,
+  stressRunning: false,
   shortcutsEnabled: true,
 };
 
@@ -261,6 +306,8 @@ async function runBench() {
   els.genBtn.disabled = false;
   els.downloadBtn.disabled = false;
   els.roState.textContent = 'Ready';
+  updateAuditButtons();
+  updateBookmark();
   status('Run complete: ' + rows.length + ' measured readings in ' + fmt(wallSeconds, 1) +
     ' seconds. Comparison, telemetry and report are ready. Every reading above is a live measurement.');
 }
@@ -608,6 +655,25 @@ function buildReport() {
     seed: run.seed,
     sizes: run.sizes,
     iterations: run.iterations,
+    lab: state.lastLab ? {
+      workloadId: state.lastLab.workloadId,
+      workloadLabel: (workloadById(state.lastLab.workloadId) || {}).label || state.lastLab.workloadId,
+      size: state.lastLab.size,
+      seed: state.lastLab.seed,
+      verdict: state.lastLab.verdict,
+      frontierIds: state.lastLab.frontierIds,
+      configs: state.lastLab.configs.map((c) => ({
+        name: c.name, declared: c.declared, opsPerSec: c.opsPerSec,
+        speedup: c.speedup, accuracyPct: c.accuracyPct, exact: c.exact,
+      })),
+    } : null,
+    stress: state.lastStress ? {
+      workloadId: state.lastStress.workloadId,
+      passed: state.lastStress.passed,
+      total: state.lastStress.total,
+      verdict: state.lastStress.verdict,
+    } : null,
+    digest: state.lastAudit ? state.lastAudit.digest : null,
   };
   els.reportOutput.value = buildReportText(run.rows, env, meta);
   els.copyBtn.disabled = false;
@@ -646,6 +712,505 @@ async function copyReport() {
   }, 2400);
 }
 
+/* Optimization lab ----------------------------------------------------------------- */
+
+function labStatusText(text) {
+  els.labStatus.textContent = text;
+}
+
+function setLabControls(disabled) {
+  els.labWorkload.disabled = disabled;
+  els.labSize.disabled = disabled;
+  els.labIters.disabled = disabled;
+  els.labRunBtn.disabled = disabled;
+  els.labRunBtn.textContent = disabled ? 'Running' : 'Run Comparison';
+}
+
+async function runLab() {
+  if (state.labRunning || state.running) return;
+  const workloadId = els.labWorkload.value;
+  if (!labConfigsFor(workloadId)) {
+    labStatusText('Unknown workload selected.');
+    return;
+  }
+  const size = Number.parseInt(els.labSize.value, 10) || 256;
+  const iterations = clampInt(els.labIters.value, 1, 8, 5);
+  els.labIters.value = String(iterations);
+  const seed = clampInt(els.seedInput.value, 0, 999999, 1337);
+  state.labRunning = true;
+  setLabControls(true);
+  els.roState.textContent = 'Running';
+  let session;
+  try {
+    if (!state.roofs) {
+      labStatusText('Measuring machine roofs with a live streaming and arithmetic microbenchmark.');
+      await yieldToUi();
+      state.roofs = measureMachineRoofs();
+    }
+    session = startComparison({ workloadId, size, seed, iterations });
+  } catch (err) {
+    state.labRunning = false;
+    setLabControls(false);
+    els.roState.textContent = 'Ready';
+    labStatusText('Comparison refused: ' + (err && err.message ? err.message : 'invalid options'));
+    return;
+  }
+  try {
+    let row;
+    while ((row = stepComparison(session))) {
+      labStatusText('Measured ' + row.name + ': ' + fmtInt(row.opsPerSec) + ' ops/sec.');
+      await yieldToUi();
+    }
+    const lab = finishComparison(session);
+    state.lastLab = lab;
+    renderLabTable(lab);
+    drawLabChart(lab);
+    renderRoofline(lab);
+    renderBottleneck(lab);
+    updateAuditButtons();
+    updateBookmark();
+    labStatusText('Comparison complete: ' + lab.configs.length +
+      ' configs measured at ' + lab.size + ' px. ' + lab.verdict);
+  } catch (err) {
+    labStatusText('Comparison failed: ' + (err && err.message ? err.message : 'engine error'));
+  } finally {
+    state.labRunning = false;
+    setLabControls(false);
+    els.roState.textContent = 'Ready';
+  }
+}
+
+function renderLabTable(lab) {
+  const tbody = els.labConfigBody;
+  tbody.textContent = '';
+  for (const c of lab.configs) {
+    const tr = document.createElement('tr');
+
+    const tdName = document.createElement('td');
+    tdName.className = 'workload';
+    tdName.textContent = c.name;
+    tr.append(tdName);
+
+    const tdIntent = document.createElement('td');
+    const intent = document.createElement('span');
+    intent.className = 'badge ' + (c.declared === 'exact' ? 'badge--exact' : 'badge--approx');
+    intent.textContent = c.declared === 'exact' ? 'Exact' : 'Approx';
+    tdIntent.append(intent);
+    tr.append(tdIntent);
+
+    const tdOps = document.createElement('td');
+    tdOps.className = 'num';
+    tdOps.textContent = fmtInt(c.opsPerSec);
+    tr.append(tdOps);
+
+    const tdSpeed = document.createElement('td');
+    tdSpeed.className = 'num';
+    tdSpeed.textContent = c.speedup === null ? 'n/a' : fmt(c.speedup, 3) + ' x';
+    tr.append(tdSpeed);
+
+    const tdAcc = document.createElement('td');
+    tdAcc.className = 'num';
+    tdAcc.textContent = c.exact ? 'bit identical' : fmt(c.accuracyPct, 2) + '% d' + c.maxDelta;
+    tr.append(tdAcc);
+
+    const tdStab = document.createElement('td');
+    const stab = document.createElement('span');
+    stab.className = stabilityClass(c.stability);
+    stab.textContent = c.stability;
+    tdStab.append(stab);
+    tr.append(tdStab);
+
+    const tdFront = document.createElement('td');
+    if (lab.frontierIds.includes(c.id)) {
+      const fb = document.createElement('span');
+      fb.className = 'badge badge--frontier';
+      fb.textContent = 'Frontier';
+      tdFront.append(fb);
+    }
+    tr.append(tdFront);
+
+    tbody.append(tr);
+  }
+  els.labFrontierNote.textContent = 'Pareto frontier on measured speed and accuracy: ' +
+    lab.frontierIds.join(', ') + '. Dominated: ' +
+    (lab.dominatedIds.length ? lab.dominatedIds.join(', ') : 'none') + '.';
+}
+
+/* SVG trade off chart ------------------------------------------------------------- */
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function svgEl(tag, attrs) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, String(v));
+  return el;
+}
+
+function drawLabChart(lab) {
+  const svg = els.labChart;
+  svg.textContent = '';
+  const configs = lab.configs;
+  const W = 720;
+  const H = 240;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  const labelW = 200;
+  const rightW = 150;
+  const barMaxW = W - labelW - rightW;
+  const rowH = (H - 34) / configs.length;
+  const maxOps = Math.max(...configs.map((c) => c.opsPerSec || 0), 1);
+  const best = configs.reduce((a, b) => ((b.opsPerSec || 0) > (a.opsPerSec || 0) ? b : a), configs[0]);
+
+  const axis = svgEl('line', { x1: labelW, y1: 6, x2: labelW, y2: H - 22, class: 'chart-axis' });
+  svg.append(axis);
+
+  const bounded = state.roofs
+    ? rooflinePosition(lab.workloadId, best.opsPerSec, state.roofs).bounded
+    : null;
+  const callout = svgEl('text', { x: W - 8, y: 16, 'text-anchor': 'end', class: 'chart-callout' });
+  callout.textContent = bounded
+    ? 'bottleneck: ' + bounded + ' (model)'
+    : 'bottleneck: see readout';
+  svg.append(callout);
+
+  configs.forEach((c, i) => {
+    const y = 24 + i * rowH;
+    const bw = Math.max(2, ((c.opsPerSec || 0) / maxOps) * barMaxW);
+    const onFrontier = lab.frontierIds.includes(c.id);
+
+    const label = svgEl('text', { x: 8, y: y + rowH / 2 + 4 });
+    label.textContent = c.name.length > 28 ? c.name.slice(0, 27) : c.name;
+    svg.append(label);
+
+    const classes = ['bar'];
+    if (c.declared === 'approx') classes.push('bar--approx');
+    if (onFrontier) classes.push('bar--frontier');
+    const bar = svgEl('rect', {
+      x: labelW, y: y + 4, width: bw, height: rowH - 10,
+      class: classes.join(' '), tabindex: '0',
+    });
+    const tip = svgEl('title', {});
+    tip.textContent = c.name + ': ' + fmtInt(c.opsPerSec) + ' ops/sec, ' +
+      fmt(c.speedup, 3) + ' x, ' + (c.exact ? 'bit identical' : fmt(c.accuracyPct, 2) + '% identical');
+    bar.append(tip);
+    bar.addEventListener('mouseover', () => {
+      els.labChartNote.textContent = c.name + ': ' + fmtInt(c.opsPerSec) + ' ops/sec measured, ' +
+        fmt(c.speedup, 3) + ' x reference, ' +
+        (c.exact ? 'bit identical to the reference' : fmt(c.accuracyPct, 2) + '% identical, max byte delta ' + c.maxDelta) +
+        (onFrontier ? ', on the Pareto frontier' : '') + '.';
+    });
+    bar.addEventListener('mouseout', () => {
+      els.labChartNote.textContent = 'Bars are normalized to the fastest config. Hover a bar for its exact measured numbers.';
+    });
+    svg.append(bar);
+
+    if (onFrontier) {
+      const cy = y + rowH / 2;
+      const d = 5;
+      const mark = svgEl('polygon', {
+        points: (labelW - 16) + ',' + cy + ' ' + (labelW - 16 + d) + ',' + (cy - d) + ' ' +
+          (labelW - 16 + 2 * d) + ',' + cy + ' ' + (labelW - 16 + d) + ',' + (cy + d),
+        class: 'frontier-mark',
+      });
+      svg.append(mark);
+    }
+
+    const val = svgEl('text', { x: labelW + bw + 6, y: y + rowH / 2 + 4 });
+    val.textContent = fmt(c.speedup, 2) + ' x, ' + (c.exact ? 'exact' : fmt(c.accuracyPct, 1) + '%');
+    svg.append(val);
+  });
+
+  const caption = svgEl('text', { x: 8, y: H - 6 });
+  caption.textContent = 'Solid: declared exact. Dashed: declared approximate. Diamond edge: Pareto frontier. All bars measured live.';
+  svg.append(caption);
+
+  svg.setAttribute('aria-label',
+    'Bar chart of measured ops per second for ' + configs.length + ' configurations of ' +
+    lab.workloadId + '. Frontier configs: ' + lab.frontierIds.join(', ') +
+    '. ' + lab.verdict);
+}
+
+function renderRoofline(lab) {
+  const roofs = state.roofs;
+  const model = WORKLOAD_MODEL[lab.workloadId];
+  const intensity = workloadIntensity(lab.workloadId);
+  const best = lab.configs.reduce((a, b) => ((b.opsPerSec || 0) > (a.opsPerSec || 0) ? b : a), lab.configs[0]);
+  const pos = rooflinePosition(lab.workloadId, best.opsPerSec, roofs);
+  els.roofIntensity.textContent = fmt(intensity, 2) + ' ops/byte (' + model.opsPerPixel + ' ops, ' + model.bytesPerPixel + ' bytes per pixel)';
+  els.roofMem.textContent = fmtInt(roofs.memoryBytesPerSec) + ' bytes/sec, measured stream';
+  els.roofCompute.textContent = fmtInt(roofs.computeOpsPerSec) + ' ops/sec, measured arithmetic';
+  els.roofCeiling.textContent = fmtInt(pos.ceilingOpsPerSec) + ' ops/sec attainable (model)';
+  els.roofHeadroom.textContent = pos.headroomPct === null ? 'n/a' :
+    fmt(pos.headroomPct, 1) + '% of the modeled ceiling (' + best.name + ')';
+  els.roofBounded.textContent = pos.bounded;
+}
+
+function renderBottleneck(lab) {
+  const parts = [];
+  const best = lab.configs.reduce((a, b) => ((b.opsPerSec || 0) > (a.opsPerSec || 0) ? b : a), lab.configs[0]);
+  const pos = rooflinePosition(lab.workloadId, best.opsPerSec, state.roofs);
+  parts.push('Roofline (model): the fastest config reaches ' +
+    (pos.headroomPct === null ? 'an unmeasured share' : fmt(pos.headroomPct, 1) + '%') +
+    ' of the attainable ceiling and is ' + pos.bounded + ' bound. ' + lab.verdict);
+  if (state.lastRun) {
+    const sc = analyzeScaling(state.lastRun.rows, lab.workloadId);
+    if (sc) {
+      parts.push('Measured scaling: pixels/sec at ' + sc.largestSize + ' px is ' +
+        fmt(sc.pixelsPerSecRatio * 100, 1) + '% of the ' + sc.smallestSize + ' px rate; ' + sc.verdict + '.');
+    } else {
+      parts.push('Measured scaling needs two or more sizes: run the bench across all sizes for a full inference.');
+    }
+  } else {
+    parts.push('Run the bench in panel 01 for a measured size to size scaling inference.');
+  }
+  els.labBottleneck.textContent = parts.join(' ');
+}
+
+/* Edge stress --------------------------------------------------------------------- */
+
+async function runStress() {
+  if (state.stressRunning || state.labRunning || state.running) return;
+  const workloadId = els.labWorkload.value;
+  if (!labConfigsFor(workloadId)) {
+    els.stressStatus.textContent = 'Unknown workload selected.';
+    return;
+  }
+  const seed = clampInt(els.seedInput.value, 0, 999999, 1337);
+  state.stressRunning = true;
+  els.stressRunBtn.disabled = true;
+  els.stressStatus.textContent = 'Stress running: every config over degenerate sizes plus one timed pass at 1024 px.';
+  await yieldToUi();
+  try {
+    const res = edgeStress({ workloadId, seed, maxSize: 1024 });
+    state.lastStress = res;
+    renderStress(res);
+    updateAuditButtons();
+    updateBookmark();
+    els.stressStatus.textContent = 'Stress complete: ' + res.passed + ' of ' + res.total +
+      ' checks passed. ' + res.verdict + '.';
+  } catch (err) {
+    els.stressStatus.textContent = 'Stress failed: ' + (err && err.message ? err.message : 'engine error');
+  } finally {
+    state.stressRunning = false;
+    els.stressRunBtn.disabled = false;
+  }
+}
+
+function renderStress(res) {
+  const tbody = els.stressBody;
+  tbody.textContent = '';
+  for (const row of res.cases) {
+    const tr = document.createElement('tr');
+    const tdCase = document.createElement('td');
+    tdCase.textContent = row.size;
+    tr.append(tdCase);
+    const tdCfg = document.createElement('td');
+    tdCfg.className = 'workload';
+    tdCfg.textContent = row.configName;
+    tr.append(tdCfg);
+    const tdRes = document.createElement('td');
+    const b = document.createElement('span');
+    b.className = 'badge ' + (row.ok ? 'badge--pass' : 'badge--fail');
+    b.textContent = row.ok ? 'Pass' : 'Fail';
+    tdRes.append(b);
+    tr.append(tdRes);
+    const tdDetail = document.createElement('td');
+    tdDetail.textContent = row.ok
+      ? 'all ' + row.checks.length + ' invariants held'
+      : 'failed: ' + row.checks.filter((k) => !k.ok).map((k) => k.name).join('; ');
+    tr.append(tdDetail);
+    tbody.append(tr);
+  }
+  for (const w of res.worstCase) {
+    const tr = document.createElement('tr');
+    const tdCase = document.createElement('td');
+    tdCase.textContent = 'worst ' + w.size;
+    tr.append(tdCase);
+    const tdCfg = document.createElement('td');
+    tdCfg.className = 'workload';
+    tdCfg.textContent = w.configName;
+    tr.append(tdCfg);
+    const tdRes = document.createElement('td');
+    const b = document.createElement('span');
+    b.className = 'badge ' + (w.ok ? 'badge--pass' : 'badge--fail');
+    b.textContent = w.ok ? 'Pass' : 'Fail';
+    tdRes.append(b);
+    tr.append(tdRes);
+    const tdDetail = document.createElement('td');
+    tdDetail.className = 'num';
+    tdDetail.textContent = w.ok ? 'single pass ' + fmt(w.latencyMs, 2) + ' ms' : (w.detail || 'failed');
+    tr.append(tdDetail);
+    tbody.append(tr);
+  }
+}
+
+/* Audit export -------------------------------------------------------------------- */
+
+function haveEvidence() {
+  return !!(state.lastRun || state.lastLab || state.lastStress);
+}
+
+function updateAuditButtons() {
+  const on = haveEvidence();
+  els.auditJsonBtn.disabled = !on;
+  els.auditCsvBtn.disabled = !on;
+  els.auditMdBtn.disabled = !on;
+}
+
+function auditEnv() {
+  return {
+    declared: 'Apple Silicon Mac, Arm64, macOS (declared by the author)',
+    runtime: navigator.userAgent + ', ' +
+      (navigator.hardwareConcurrency ? navigator.hardwareConcurrency + ' logical cores' : 'core count not reported'),
+  };
+}
+
+function saveTextFile(filename, text, type) {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportAudit(kind) {
+  if (!haveEvidence()) return;
+  const payload = buildAuditPayload({
+    run: state.lastRun,
+    lab: state.lastLab,
+    stress: state.lastStress,
+    roofs: state.roofs,
+    env: auditEnv(),
+    meta: { author: 'Aariv Patel', generatedAt: new Date().toISOString() },
+  });
+  let out;
+  let ext;
+  let type;
+  if (kind === 'json') {
+    out = auditExportJson(payload); ext = 'json'; type = 'application/json';
+  } else if (kind === 'csv') {
+    out = auditExportCsv(payload); ext = 'csv'; type = 'text/csv';
+  } else {
+    out = auditExportMarkdown(payload); ext = 'md'; type = 'text/markdown';
+  }
+  state.lastAudit = { text: out.text, digest: out.digest, kind: ext };
+  els.auditDigest.textContent = out.digest;
+  els.auditVerifyBtn.disabled = false;
+  saveTextFile('armbench-audit-' + out.digest.slice(0, 12) + '.' + ext, out.text, type);
+  els.auditNote.textContent = 'Exported ' + ext.toUpperCase() +
+    ' with sections: ' + (payload.sections.join(', ') || 'none') +
+    '. Verify Digest recomputes the checksum.';
+}
+
+function verifyAudit() {
+  if (!state.lastAudit) return;
+  const v = verifyAuditJson(state.lastAudit.text, state.lastAudit.digest);
+  els.auditNote.textContent = v.ok
+    ? 'Digest verified: the exported file is unchanged since export.'
+    : 'Digest mismatch: the stored text no longer hashes to ' + v.expected.slice(0, 12) + '...';
+}
+
+/* Bookmark ------------------------------------------------------------------------- */
+
+function currentBookmarkState() {
+  const sizeVal = els.sizeSelect.value;
+  return {
+    seed: clampInt(els.seedInput.value, 0, 999999, 1337),
+    sizes: sizeVal === 'all' ? [256, 512, 1024] : [Number.parseInt(sizeVal, 10) || 256],
+    iterations: clampInt(els.itersInput.value, 1, 8, 5),
+    workload: els.labWorkload.value,
+    labSize: Number.parseInt(els.labSize.value, 10) || 256,
+  };
+}
+
+function updateBookmark() {
+  try {
+    const base = window.location && window.location.origin
+      ? window.location.origin + window.location.pathname
+      : 'index.html';
+    els.bookmarkLink.value = base + '#' + encodeBookmark(currentBookmarkState());
+  } catch (err) {
+    /* A link is a convenience; a broken one must never break the page. */
+  }
+}
+
+function applyBookmarkFromHash() {
+  if (!window.location || typeof window.location.hash !== 'string' ||
+    !/^#?arm=/.test(window.location.hash)) {
+    return;
+  }
+  const dec = decodeBookmark(window.location.hash);
+  if (!dec.ok) {
+    els.bookmarkNote.textContent = 'Ignored an invalid bookmark hash: ' + dec.error + '.';
+    return;
+  }
+  const s = dec.state;
+  els.seedInput.value = String(s.seed);
+  els.itersInput.value = String(Math.min(8, s.iterations));
+  const all = [256, 512, 1024];
+  if (s.sizes.length === 3 && all.every((v, i) => s.sizes[i] === v)) {
+    els.sizeSelect.value = 'all';
+  } else if (s.sizes.length === 1 && all.includes(s.sizes[0])) {
+    els.sizeSelect.value = String(s.sizes[0]);
+  } else {
+    els.sizeSelect.value = 'all';
+    els.bookmarkNote.textContent = 'Bookmark applied; its custom size list has no select option so all sizes are kept.';
+  }
+  if (s.workload && labConfigsFor(s.workload)) els.labWorkload.value = s.workload;
+  if (s.labSize !== null) {
+    const ok = [...els.labSize.querySelectorAll('option')]
+      .some((o) => o.getAttribute('value') === String(s.labSize));
+    if (ok) els.labSize.value = String(s.labSize);
+  }
+  if (!els.bookmarkNote.textContent) {
+    els.bookmarkNote.textContent = 'Bookmark applied from the URL hash.';
+  }
+  drawPreview();
+}
+
+async function copyBookmark() {
+  updateBookmark();
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(els.bookmarkLink.value);
+    ok = true;
+  } catch (err) {
+    els.bookmarkLink.focus();
+    els.bookmarkLink.select();
+  }
+  els.bookmarkNote.textContent = ok ? 'Link Copied To Clipboard' : 'Selected, Press Control C Or Command C';
+}
+
+/* Self tests ------------------------------------------------------------------------ */
+
+function runSelfTestsPanel() {
+  const res = runSelfTests();
+  els.selftestBody.textContent = '';
+  for (const r of res.results) {
+    const li = document.createElement('li');
+    const b = document.createElement('span');
+    b.className = 'badge ' + (r.ok ? 'badge--pass' : 'badge--fail');
+    b.textContent = r.ok ? 'Pass' : 'Fail';
+    const name = document.createElement('span');
+    name.textContent = r.name;
+    li.append(b, name);
+    if (r.detail) {
+      const d = document.createElement('span');
+      d.className = 'st-detail';
+      d.textContent = r.detail;
+      li.append(d);
+    }
+    els.selftestBody.append(li);
+  }
+  els.selftestSummary.textContent = res.passed + ' passed, ' + res.failed +
+    ' failed of ' + res.count + ' self tests. ' + res.verdict + '.';
+  return res;
+}
+
 /* Wire up ---------------------------------------------------------------------------- */
 
 function init() {
@@ -668,6 +1233,20 @@ function init() {
   els.scalingWorkload.addEventListener('change', renderScaling);
   els.shortcutsClose.addEventListener('click', () => els.shortcutsDialog.close());
   els.shortcutsBtn.addEventListener('click', () => els.shortcutsDialog.showModal());
+  els.labRunBtn.addEventListener('click', runLab);
+  els.stressRunBtn.addEventListener('click', runStress);
+  els.auditJsonBtn.addEventListener('click', () => exportAudit('json'));
+  els.auditCsvBtn.addEventListener('click', () => exportAudit('csv'));
+  els.auditMdBtn.addEventListener('click', () => exportAudit('md'));
+  els.auditVerifyBtn.addEventListener('click', verifyAudit);
+  els.bookmarkCopyBtn.addEventListener('click', copyBookmark);
+  els.selftestRunBtn.addEventListener('click', runSelfTestsPanel);
+  for (const el of [els.sizeSelect, els.itersInput, els.seedInput, els.labWorkload, els.labSize, els.labIters]) {
+    el.addEventListener('change', updateBookmark);
+  }
+  applyBookmarkFromHash();
+  updateBookmark();
+  updateAuditButtons();
 
   state.shortcutsEnabled = loadShortcutPref();
   els.shortcutsToggle.checked = state.shortcutsEnabled;

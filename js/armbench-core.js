@@ -709,6 +709,30 @@ export function generateReport(rows, env, meta) {
   lines.push('Browser: serve this folder statically (for example python3 -m http.server 8000), open the page, keep the same seed and iteration count, press Run');
   lines.push('Node: node scripts/run-bench.mjs --seed ' + meta.seed + ' --iterations ' + meta.iterations + ' --all-sizes');
   lines.push('Graviton plug in point: on any AWS Graviton Linux instance with Node 18 or newer, run the same Node command with --json and compare against section 2');
+  if (meta.lab) {
+    lines.push('');
+    lines.push('6. Optimization Lab (measured)');
+    lines.push('Workload: ' + meta.lab.workloadLabel + ' at ' + meta.lab.size + ' px, seed ' + meta.lab.seed);
+    for (const c of meta.lab.configs) {
+      lines.push('- ' + c.name + ' [' + c.declared + ']: ' + fmtInt(c.opsPerSec) + ' ops/sec, ' +
+        (c.speedup === null ? 'n/a' : fmt(c.speedup, 3) + ' x') + ' reference, ' +
+        (c.exact ? 'bit identical output' : fmt(c.accuracyPct, 2) + '% identical'));
+    }
+    lines.push('Pareto frontier configs: ' + meta.lab.frontierIds.join(', '));
+    lines.push('Verdict: ' + meta.lab.verdict);
+  }
+  if (meta.stress) {
+    lines.push('');
+    lines.push('7. Edge Stress (measured)');
+    lines.push('Workload: ' + meta.stress.workloadId + '. ' + meta.stress.passed +
+      ' of ' + meta.stress.total + ' config case checks passed. ' + meta.stress.verdict + '.');
+  }
+  if (meta.digest) {
+    lines.push('');
+    lines.push('8. Audit Integrity');
+    lines.push('SHA-256 digest of the latest audit export: ' + meta.digest);
+    lines.push('The digest is unkeyed tamper detection: it detects edits after export, not authorship.');
+  }
   lines.push('');
   lines.push('Honesty Statement');
   lines.push('Every number labeled Measured comes from a live timed run of the kernels in this repository. Every number labeled Estimate is arithmetic derived from a local measurement plus the documented assumptions in section 3. No estimate is presented as a measurement.');

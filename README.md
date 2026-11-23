@@ -8,13 +8,15 @@ AWS Graviton was not used. No cloud instance was contacted at any point. The loc
 
 ## What It Is
 
-A static single page app, `index.html` at the repo root, with five panels:
+A static single page app, `index.html` at the repo root, with seven panels:
 
 1. **Workload Bench** runs real in browser timing of five image kernels (bilinear resize, grayscale, 3 by 3 box blur, Sobel edge detection, 256 bin histogram) plus a synthetic 8 frame video pipeline, across image sizes and iteration counts, using seeded deterministic pixel buffers and a monotonic clock. The host specs and the seeded test pattern are shown next to the results. A run can be cancelled between steps, and no partial report is produced from a cancelled run.
 2. **Baseline Compare** sets the measured local numbers beside estimated Graviton figures in a table and a canvas chart. Solid cells are measurements. Hatched, dashed cells carry the Estimate badge and are projections from a documented model, never measurements.
 3. **Timing Telemetry** reports population standard deviation, coefficient of variation, 95th percentile and trimmed mean for every timed pass, plus a stability verdict for the whole run and measured size to size scaling ratios. Every value here comes from the same live samples as the results table, and a noisy run says so instead of hiding behind a single mean.
-4. **Environment Card** states plainly what machine was measured, what was not measured, and how to reproduce on Graviton.
-5. **Report Export** generates a copyable and downloadable methodology block, including the honesty statement, the timing dispersion, the assumptions and the exact reproduction commands, so a judge can rerun everything.
+4. **Optimization Lab** is a five config comparator and bottleneck analyzer per workload. Each workload ships a reference plus four real optimized variants, every one timed live on the same seeded input and scored for bit exactness against the reference on two probes (the grayscale bench input and a deterministic color probe). The panel reports exact performance, accuracy and efficiency deltas, the Pareto frontier over measured speed and measured accuracy, a roofline readout pairing live microbenchmark roofs with a documented op model (clearly labeled as a model), a bottleneck inference, a zero dependency SVG trade off chart with a bottleneck callout, and a worst case edge stress suite that runs every config over degenerate one pixel and sliver sizes plus a timed pass at the largest size.
+5. **Audit And Verify** exports the accumulated evidence as canonical JSON, CSV or Markdown with a pure JavaScript FIPS 180-4 SHA-256 checksum, honestly described in the page as an unkeyed tamper detection digest that detects edits rather than proving authorship. Verify Digest recomputes the checksum in page, the CSV export quotes and defuses formula leading cells, a strict `#arm=` bookmark encodes the seed, sizes, iterations and lab controls and rejects malformed or out of range hashes, and a Run Self Tests button executes the invariant battery live in the browser.
+6. **Environment Card** states plainly what machine was measured, what was not measured, and how to reproduce on Graviton.
+7. **Report Export** generates a copyable and downloadable methodology block, including the honesty statement, the timing dispersion, the assumptions and the exact reproduction commands, so a judge can rerun everything.
 
 Keyboard shortcuts are listed in an accessible dialog: `R` runs, `E` downloads the report, `G` generates it, `C` copies it, `?` opens the shortcut list, and `Esc` closes the dialog. Shortcuts are ignored while a form control has focus, so typing a seed never starts a run.
 
@@ -35,9 +37,10 @@ Run the same suite without a browser:
 node scripts/run-bench.mjs                          # table, all sizes
 node scripts/run-bench.mjs --seed 1337 --iterations 5 --all-sizes
 node scripts/run-bench.mjs --size 512 --json        # machine readable with dispersion
+node scripts/run-bench.mjs --lab blur               # five config optimization comparison
 ```
 
-Run the tests (198 tests, Node 18 or newer, no packages, no network, about 30 seconds):
+Run the tests (382 tests, Node 18 or newer, no packages, no network):
 
 ```sh
 node --test tests/
@@ -87,6 +90,8 @@ The same command, the same kernels and the same seed produce the same table on t
 | `tests/ui-runtime.test.mjs` | Live run flow, rendered tables, badges, keyboard shortcuts, cancel, report copy and download, accessibility contracts |
 | `tests/dom-smoke.test.js` | Markup, unique ids, label resolution, stylesheet guards, punctuation hygiene |
 | `tests/hardening.test.mjs` | Hostile inputs, pixel budget on every step, CSP contract, single key shortcut switch, copy hygiene self scan |
+| `tests/bench-lab.test.mjs` | Five config registry, exactness sweep, Pareto frontier, op model and roofs, scaling inference, edge stress, FIPS 180-4 SHA-256 vectors, canonical JSON, CSV injection defense, strict bookmark codec |
+| `tests/ui-lab.test.mjs` | Live lab and audit panels in the DOM harness: comparison table, SVG chart, roofline readouts, stress table, export and verify, bookmark apply and reject, self test panel |
 
 ## Project Structure
 
@@ -95,9 +100,11 @@ index.html              the app, static and dependency free
 css/tokens.css          design tokens, one source of truth for every value
 css/style.css           the instrument panel stylesheet
 js/armbench-core.js     kernels, PRNG, timing harness, dispersion, scaling, estimate model, report generator
+js/bench-lab.js         optimization lab: config variants, comparator, Pareto frontier, op model and roofs, edge stress, pure JS SHA-256, audit exports, bookmark codec, self tests
 js/app.js               browser wiring, chart drawing, telemetry, run flow
-scripts/run-bench.mjs   the same bench from the command line, prints a table or JSON
-tests/                  198 node:test cases across seven files
+scripts/run-bench.mjs   the same bench from the command line, prints a table or JSON, plus --lab
+scripts/headless-audit.mjs  real headless Chromium audit over the DevTools protocol
+tests/                  382 node:test cases across nine files
 DEVPOST_UPGRADE.md      submission upgrade notes and verification numbers
 NOTES.md                build notes, real measurements, honest caveats
 ```

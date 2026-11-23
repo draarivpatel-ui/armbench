@@ -60,3 +60,12 @@ Run the identical suite on an EC2 c7g instance to replace the estimated column w
 ## Judge demo
 
 Serve the folder, press `R`, watch all six queue entries complete, then open the Timing Telemetry panel. Run all sizes and change the scaling workload selector to see measured ratios for each kernel. Press `G` and `E` to generate and download the report, which now includes the dispersion section alongside the honesty statement and the reproduction commands.
+
+## Optimization Lab and Audit pass
+
+This pass adds two panels and one module while keeping every earlier honesty rule.
+
+- **Optimization Lab** (`js/bench-lab.js`, panel 04): a five config comparator per workload, each leading with the reference kernel plus four real variants declared as exact or approximate. Every config is timed live on the same seeded input and compared byte for byte against the reference on two probes, so exactness is measured, not claimed. The panel reports performance, accuracy and stability deltas, the Pareto frontier over measured speed and measured accuracy, a roofline readout pairing live microbenchmark roofs with a documented op model (labeled as a model, never a measurement), a bottleneck inference, a zero dependency SVG trade off chart with a bottleneck callout, and an edge stress suite over degenerate sizes plus a timed worst case pass.
+- **Audit And Verify** (panel 05): canonical JSON, CSV and Markdown exports checksummed by a pure JavaScript FIPS 180-4 implementation of SHA-256, described on the page as an unkeyed tamper detection digest. In page Verify Digest recomputes the checksum, the CSV writer quotes specials and prefixes formula leading cells, a strict `#arm=` bookmark restores the seed, sizes, iterations and lab controls and rejects malformed or out of range hashes without partially applying them, and a Run Self Tests button runs the invariant battery live.
+- Honesty guardrails that held through the pass: `video/` untouched, zero external network requests, CSP unchanged, every speed figure a live measurement, every roofline figure labeled model, and declared intent kept separate from measured exactness.
+- New verified numbers: **382 node:test cases pass with 0 failures** across nine files, **20 of 20 in page self tests pass**, and a real headless Chromium audit at 1440x900 and 390x844 reports 0 console errors, 0 page errors, 0 external requests and 0 overflow errors (`node scripts/headless-audit.mjs`).

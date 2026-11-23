@@ -47,9 +47,9 @@ test('all getElementById bindings in the app exist in the markup', () => {
   for (const id of bound) assert.ok(ids.has(id), 'app binds missing #' + id);
 });
 
-test('the five panels are numbered in order and each has a heading', () => {
+test('the seven panels are numbered in order and each has a heading', () => {
   const panels = [...html.matchAll(/<section class="panel" id="([^"]+)" aria-labelledby="([^"]+)">/g)];
-  assert.deepEqual(panels.map((m) => m[1]), ['bench', 'compare', 'telemetry', 'environment', 'report']);
+  assert.deepEqual(panels.map((m) => m[1]), ['bench', 'compare', 'telemetry', 'lab', 'audit', 'environment', 'report']);
   for (const m of panels) {
     assert.ok(html.includes('id="' + m[2] + '"'), 'heading missing for ' + m[1]);
   }

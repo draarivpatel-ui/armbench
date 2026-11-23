@@ -1065,3 +1065,162 @@ kbd {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Optimization lab and audit ------------------------------------------------ */
+
+.swatch--frontier {
+  border: 1.5px solid var(--color-accent);
+  background: transparent;
+  transform: rotate(45deg);
+  border-radius: 1px;
+}
+
+.badge--exact {
+  color: var(--color-accent);
+  border-color: color-mix(in oklab, var(--color-accent) 55%, transparent);
+  background: var(--color-accent-dim);
+}
+
+.badge--approx {
+  color: var(--color-muted);
+  border: 1px dashed var(--color-line-strong);
+}
+
+.badge--frontier {
+  color: var(--color-accent-ink);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  font-weight: 600;
+}
+
+.badge--pass {
+  color: var(--color-accent);
+  border-color: color-mix(in oklab, var(--color-accent) 55%, transparent);
+  background: var(--color-accent-dim);
+}
+
+.badge--fail {
+  color: var(--color-ink);
+  border: 1px dashed var(--color-accent-deep);
+  background: transparent;
+}
+
+.lab-chart {
+  width: 100%;
+  height: 240px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-panel);
+  display: block;
+}
+
+.lab-chart .bar {
+  fill: var(--color-accent);
+}
+
+.lab-chart .bar--approx {
+  fill: var(--color-accent-dim);
+  stroke: var(--color-accent-deep);
+  stroke-dasharray: 3 3;
+  stroke-width: 1;
+}
+
+.lab-chart .bar--frontier {
+  stroke: var(--color-accent);
+  stroke-width: 1.5;
+}
+
+.lab-chart text {
+  fill: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.lab-chart .chart-axis {
+  stroke: var(--color-line);
+  stroke-width: 1;
+}
+
+.lab-chart .chart-callout {
+  fill: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.lab-chart .frontier-mark {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 1.5;
+}
+
+.audit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-m);
+  align-items: start;
+}
+
+.audit-digest-wrap {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--color-muted);
+  margin: var(--space-xs) 0 0;
+  word-break: break-all;
+}
+
+.audit-digest-wrap .k {
+  color: var(--color-faint);
+}
+
+.audit-digest {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+}
+
+.bookmark-input {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--color-body-ink);
+  background: var(--color-ground);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: var(--space-2xs) var(--space-xs);
+  margin-bottom: var(--space-2xs);
+}
+
+.selftest-list {
+  margin: var(--space-2xs) 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-line);
+}
+
+.selftest-list li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2xs);
+  padding: var(--space-3xs) 0;
+  border-bottom: 1px solid var(--color-line);
+  font-size: var(--text-small);
+  color: var(--color-body-ink);
+}
+
+.selftest-list li .st-detail {
+  color: var(--color-faint);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+}
+
+.selftest-list li.empty-row {
+  color: var(--color-faint);
+  display: list-item;
+  margin-inline-start: var(--space-s);
+}
+
+@media (max-width: 900px) {
+  .audit-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

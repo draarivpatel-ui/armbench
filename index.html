@@ -28,8 +28,10 @@
             <li><a href="#bench"><span class="no">01</span>Workload Bench</a></li>
             <li><a href="#compare"><span class="no">02</span>Baseline Compare</a></li>
             <li><a href="#telemetry"><span class="no">03</span>Timing Telemetry</a></li>
-            <li><a href="#environment"><span class="no">04</span>Environment Card</a></li>
-            <li><a href="#report"><span class="no">05</span>Report Export</a></li>
+            <li><a href="#lab"><span class="no">04</span>Optimization Lab</a></li>
+            <li><a href="#audit"><span class="no">05</span>Audit And Verify</a></li>
+            <li><a href="#environment"><span class="no">06</span>Environment Card</a></li>
+            <li><a href="#report"><span class="no">07</span>Report Export</a></li>
           </ol>
         </nav>
       </div>
@@ -282,10 +284,173 @@
       </div>
     </section>
 
-    <section class="panel" id="environment" aria-labelledby="environment-title">
+    <section class="panel" id="lab" aria-labelledby="lab-title">
       <div class="frame">
         <div class="panel-head">
           <span class="panel-no" aria-hidden="true">04</span>
+          <h2 id="lab-title">Optimization Lab</h2>
+        </div>
+
+        <div class="bench-grid">
+          <div>
+            <div class="controls">
+              <div class="field">
+                <label for="lab-workload">Workload</label>
+                <select id="lab-workload">
+                  <option value="grayscale">Grayscale (Rec. 709 Luma)</option>
+                  <option value="blur" selected>Convolution Blur (3 by 3 Box)</option>
+                  <option value="sobel">Edge Detection (Sobel Magnitude)</option>
+                  <option value="histogram">Histogram (256 Bins, Luma)</option>
+                  <option value="resize">Resize (Bilinear, Half Size)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="lab-size">Image Size</label>
+                <select id="lab-size">
+                  <option value="128">128 px</option>
+                  <option value="256" selected>256 px</option>
+                  <option value="512">512 px</option>
+                  <option value="1024">1024 px</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="lab-iters">Iterations Per Config</label>
+                <input id="lab-iters" type="number" inputmode="numeric" min="1" max="8" step="1" value="5" />
+              </div>
+              <div class="btn-row">
+                <button type="button" id="lab-run-btn" class="btn btn-primary">Run Comparison</button>
+              </div>
+              <p class="controls-note">Five configurations are compared for the selected workload: the reference kernel plus four real variant implementations. Speed is measured live on the seeded bench input from panel 01. Accuracy is measured byte for byte against the reference on a deterministic color probe, because the grayscale bench input would hide rounding differences. Iterations share the 12 million pixel per pass budget.</p>
+            </div>
+
+            <p class="bench-status" id="lab-status" role="status" aria-live="polite">Idle. Pick a workload and run the comparison.</p>
+
+            <h3 class="sub">Roofline Position</h3>
+            <dl class="spec-list" aria-label="Roofline Model Readout">
+              <div><dt>Documented Intensity</dt><dd id="roof-intensity">No lab run yet</dd></div>
+              <div><dt>Memory Roof, Measured</dt><dd id="roof-mem">No lab run yet</dd></div>
+              <div><dt>Compute Roof, Measured</dt><dd id="roof-compute">No lab run yet</dd></div>
+              <div><dt>Attainable Ceiling</dt><dd id="roof-ceiling">No lab run yet</dd></div>
+              <div><dt>Best Config Headroom</dt><dd id="roof-headroom">No lab run yet</dd></div>
+              <div><dt>Bounded By</dt><dd id="roof-bounded">No lab run yet</dd></div>
+            </dl>
+            <p class="controls-note">The two roofs come from a live streaming and arithmetic microbenchmark on this machine; the intensity comes from a documented per pixel op count. Headroom is a model figure, not a measurement.</p>
+
+            <h3 class="sub">Bottleneck Inference</h3>
+            <p class="env-prose" id="lab-bottleneck">Run the comparison, or run the bench across all sizes, for a scaling and roofline verdict.</p>
+          </div>
+
+          <div>
+            <h3 class="sub">Configuration Results</h3>
+            <div class="table-scroll" role="region" aria-label="Configuration Comparison Table" tabindex="0">
+              <table>
+                <caption>Five configurations for the selected workload, all timed live. The Frontier badge marks Pareto optimal configs on measured speed and measured accuracy.</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Config</th>
+                    <th scope="col">Intent</th>
+                    <th scope="col" class="num">Ops Per Sec</th>
+                    <th scope="col" class="num">Speedup</th>
+                    <th scope="col" class="num">Accuracy</th>
+                    <th scope="col">Stability</th>
+                    <th scope="col">Frontier</th>
+                  </tr>
+                </thead>
+                <tbody id="lab-config-body">
+                  <tr class="empty-row">
+                    <td colspan="7">No comparison yet. Every row will carry live measured throughput and a byte level accuracy score.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="controls-note" id="lab-frontier-note">The Pareto frontier appears here after a comparison.</p>
+
+            <h3 class="sub">Trade Off Chart</h3>
+            <ul class="chart-legend" aria-label="Lab Chart Legend">
+              <li><span class="swatch swatch--measured" aria-hidden="true"></span>Measured Throughput</li>
+              <li><span class="swatch swatch--frontier" aria-hidden="true"></span>Pareto Frontier</li>
+            </ul>
+            <svg id="lab-chart" class="lab-chart" role="img" aria-label="Bar chart of measured throughput per configuration. It fills in after a comparison run."></svg>
+            <p class="chart-note" id="lab-chart-note">Bars are normalized to the fastest config. Hover a bar for its exact measured numbers.</p>
+
+            <h3 class="sub">Worst Case Edge Stress</h3>
+            <div class="btn-row">
+              <button type="button" id="stress-run-btn" class="btn btn-ghost">Run Edge Stress</button>
+            </div>
+            <p class="bench-status" id="stress-status" role="status" aria-live="polite">Idle. Stress runs every config over degenerate sizes plus one timed pass at 1024 px.</p>
+            <div class="table-scroll" role="region" aria-label="Edge Stress Table" tabindex="0">
+              <table>
+                <caption>Domain invariant checks per config and hostile size, plus worst case latency at the largest lab size.</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Case</th>
+                    <th scope="col">Config</th>
+                    <th scope="col">Result</th>
+                    <th scope="col">Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="stress-body">
+                  <tr class="empty-row">
+                    <td colspan="4">No stress run yet. Every config is checked for conservation invariants on hostile sizes.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="audit" aria-labelledby="audit-title">
+      <div class="frame">
+        <div class="panel-head">
+          <span class="panel-no" aria-hidden="true">05</span>
+          <h2 id="audit-title">Audit And Verify</h2>
+        </div>
+
+        <div class="audit-grid">
+          <div class="telemetry-card">
+            <h3 class="sub">Checksummed Export</h3>
+            <div class="btn-row">
+              <button type="button" id="audit-json-btn" class="btn btn-primary" disabled>Export Json</button>
+              <button type="button" id="audit-csv-btn" class="btn btn-ghost" disabled>Export Csv</button>
+              <button type="button" id="audit-md-btn" class="btn btn-ghost" disabled>Export Markdown</button>
+              <button type="button" id="audit-verify-btn" class="btn btn-ghost" disabled>Verify Digest</button>
+            </div>
+            <p class="audit-digest-wrap"><span class="k">Sha-256</span> <code class="audit-digest" id="audit-digest">No export yet</code></p>
+            <p class="copied-note" id="audit-note" role="status" aria-live="polite"></p>
+            <p class="controls-note">The digest is an unkeyed FIPS 180-4 SHA-256 tamper detection checksum computed by a pure JavaScript implementation in this page. It detects edits after export; it is not a signature and proves nothing about authorship. JSON is canonical with sorted keys, CSV escapes formula leading cells, and the export only contains sections backed by real runs.</p>
+          </div>
+
+          <div class="telemetry-card">
+            <h3 class="sub">Bookmark Link</h3>
+            <label class="mono-label label-block" for="bookmark-link">Current State As A Link</label>
+            <input id="bookmark-link" class="bookmark-input" type="text" readonly spellcheck="false" value="Run or change controls to build a link" />
+            <div class="btn-row">
+              <button type="button" id="bookmark-copy-btn" class="btn btn-ghost">Copy Link</button>
+            </div>
+            <p class="copied-note" id="bookmark-note" role="status" aria-live="polite"></p>
+            <p class="controls-note">The link encodes the seed, sizes, iterations, lab workload and lab size in a strict <code>arm=</code> hash token. Open the page with that hash and the same controls are restored. Anything malformed or out of range is rejected, never partially applied.</p>
+          </div>
+
+          <div class="telemetry-card">
+            <h3 class="sub">Self Tests</h3>
+            <div class="btn-row">
+              <button type="button" id="selftest-run-btn" class="btn btn-primary">Run Self Tests</button>
+            </div>
+            <p class="bench-status" id="selftest-summary" role="status" aria-live="polite">Idle. Runs the in page battery: SHA-256 known answers, conservation invariants, Pareto dominance, CSV escaping, tamper detection and bookmark strictness.</p>
+            <ol class="selftest-list" id="selftest-body">
+              <li class="empty-row">No self test run yet.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="environment" aria-labelledby="environment-title">
+      <div class="frame">
+        <div class="panel-head">
+          <span class="panel-no" aria-hidden="true">06</span>
           <h2 id="environment-title">Environment Card</h2>
         </div>
 
@@ -333,7 +498,7 @@
     <section class="panel" id="report" aria-labelledby="report-title">
       <div class="frame">
         <div class="panel-head">
-          <span class="panel-no" aria-hidden="true">05</span>
+          <span class="panel-no" aria-hidden="true">07</span>
           <h2 id="report-title">Report Export</h2>
         </div>
 

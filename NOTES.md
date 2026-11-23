@@ -119,3 +119,24 @@ What the pass fixed:
 - Regression coverage for every reproduced defect lives in
   `tests/hardening.test.mjs`; test file probe literals are code point decoded
   so the self scanners cannot flag the suite itself.
+
+## Optimization lab and audit notes
+
+- `js/bench-lab.js` is DOM free like the core: the comparator, Pareto frontier,
+  op model, edge stress, SHA-256, exports, bookmark codec and self tests run
+  identically in Node, the page and the DOM harness.
+- Variants are real implementations, not relabels: separable and sliding
+  window blurs, row buffered Sobel, LUT resize, integer luma, and an exact
+  float luma unroll. Declared exact configs are verified bit identical on two
+  probes per run; the edge stress suite re checks them on hostile sizes.
+- The grayscale accuracy probe (`makeColorProbe`) exists because the bench
+  input is grayscale by construction and would hide luma weight bugs.
+- Roofline readouts pair measured micro roofs (streaming sum, integer MAC
+  chains) with documented per workload op counts. Headroom is labeled model.
+- The audit digest is unkeyed SHA-256 over the whole exported text. It detects
+  edits after export; it is not a signature and proves nothing about who made
+  the file. CSV cells with formula leading characters get an apostrophe before
+  quoting.
+- The strict `#arm=` bookmark shares one field validator between encode and
+  decode, so no hash can be produced that the decoder would reject. Unknown
+  versions and any single bad field fail the whole payload.

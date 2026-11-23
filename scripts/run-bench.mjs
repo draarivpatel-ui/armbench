@@ -26,6 +26,10 @@ import {
   planRun, executeStep, estimateFromLocal, estimateLatencyMs, runTelemetry,
   ESTIMATE_MODEL, fmt, fmtInt, VIDEO_CONFIG, MAX_IMAGE_PIXELS,
 } from '../js/armbench-core.js';
+import {
+  runConfigComparison, labConfigsFor, measureMachineRoofs, rooflinePosition,
+  workloadIntensity, LAB_CONFIGS,
+} from '../js/bench-lab.js';
 
 const USAGE = `ArmBench Node runner.
 Usage:
@@ -37,13 +41,15 @@ Flags (each takes either --flag value or --flag=value):
   --size N         one square size in pixels, within the pixel cap
   --all-sizes      run 256, 512 and 1024 (default)
   --iterations N   timed iterations per workload, 1 to 12, default 5
+  --lab WORKLOAD   run the five config optimization comparison for one
+                   workload: grayscale, blur, sobel, histogram or resize
   --json           print machine readable results instead of a table
   -h, --help       print this text`;
 
 function parseArgs(argv) {
-  const opts = { seed: '1337', iterations: '5', size: null, json: false };
+  const opts = { seed: '1337', iterations: '5', size: null, lab: null, json: false };
   const errors = [];
-  const takesValue = new Set(['--seed', '--iterations', '--size']);
+  const takesValue = new Set(['--seed', '--iterations', '--size', '--lab']);
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '-h' || arg === '--help') return { help: true };
@@ -61,6 +67,10 @@ function parseArgs(argv) {
       }
       if (value === undefined) {
         errors.push(flag + ' needs an integer value');
+        continue;
+      }
+      if (flag === '--lab') {
+        opts.lab = value;
         continue;
       }
       if (!/^-?\d+$/.test(value)) {
@@ -95,7 +105,13 @@ if (parsed.errors.length) {
 const seed = Number.parseInt(parsed.opts.seed, 10);
 const iterations = Number.parseInt(parsed.opts.iterations, 10);
 const sizes = parsed.opts.size !== null ? [Number.parseInt(parsed.opts.size, 10)] : [256, 512, 1024];
+const labWorkload = parsed.opts.lab;
 const asJson = parsed.opts.json;
+
+if (labWorkload !== null && !labConfigsFor(labWorkload)) {
+  console.error('Invalid arguments. --lab expects one of: ' + Object.keys(LAB_CONFIGS).join(', '));
+  process.exit(2);
+}
 
 if (!Number.isInteger(seed)
   || !Number.isInteger(iterations) || iterations < 1 || iterations > 12
@@ -114,6 +130,63 @@ const env = {
   cpuModel: cpu.model || 'unknown',
   cores: os.cpus().length,
 };
+
+if (labWorkload !== null) {
+  const labSize = parsed.opts.size !== null ? Number.parseInt(parsed.opts.size, 10) : 256;
+  if (!Number.isInteger(labSize) || labSize < 1 || labSize * labSize > MAX_IMAGE_PIXELS) {
+    console.error('Invalid arguments. --size for --lab must be a positive integer within the pixel cap.');
+    process.exit(2);
+  }
+  const lab = runConfigComparison({ workloadId: labWorkload, size: labSize, seed, iterations });
+  const roofs = measureMachineRoofs(undefined, 0.25);
+  const best = lab.configs.reduce((a, b) => ((b.opsPerSec || 0) > (a.opsPerSec || 0) ? b : a), lab.configs[0]);
+  const pos = rooflinePosition(labWorkload, best.opsPerSec, roofs);
+  if (asJson) {
+    console.log(JSON.stringify({
+      tool: 'ArmBench Optimization Lab',
+      author: 'Aariv Patel',
+      generatedAt: new Date().toISOString(),
+      basis: 'live measurements plus a documented roofline model',
+      lab,
+      machineRoofs: roofs,
+      roofline: pos,
+    }, null, 2));
+  } else {
+    console.log('----------------------------------------------------------------');
+    console.log('ArmBench Optimization Lab. Author: Aariv Patel');
+    console.log('Five configs for ' + labWorkload + ' at ' + labSize + ' px, seed ' + seed +
+      ', ' + lab.iterations + ' iterations each. All speeds measured live.');
+    console.log('----------------------------------------------------------------');
+    console.log(
+      'Config'.padEnd(38) +
+      'Intent'.padEnd(9) +
+      'Ops/sec'.padEnd(12) +
+      'Speedup'.padEnd(10) +
+      'Accuracy'.padEnd(14) +
+      'Frontier'
+    );
+    for (const c of lab.configs) {
+      console.log(
+        c.name.padEnd(38) +
+        c.declared.padEnd(9) +
+        fmt(c.opsPerSec, 1).padEnd(12) +
+        (c.speedup === null ? 'n/a' : fmt(c.speedup, 3) + 'x').padEnd(10) +
+        (c.exact ? 'bit identical' : fmt(c.accuracyPct, 2) + '%').padEnd(14) +
+        (lab.frontierIds.includes(c.id) ? 'yes' : '')
+      );
+    }
+    console.log('');
+    console.log('Pareto frontier: ' + lab.frontierIds.join(', '));
+    console.log(lab.verdict);
+    console.log('Roofline (model): intensity ' + fmt(workloadIntensity(labWorkload), 2) +
+      ' ops/byte, memory roof ' + fmtInt(roofs.memoryBytesPerSec) + ' B/s measured, compute roof ' +
+      fmtInt(roofs.computeOpsPerSec) + ' ops/s measured, ceiling ' + fmtInt(pos.ceilingOpsPerSec) +
+      ' ops/s, headroom ' + (pos.headroomPct === null ? 'n/a' : fmt(pos.headroomPct, 1) + '%') +
+      ', bounded by ' + pos.bounded + '.');
+    console.log('Honesty: speeds are live measurements; roofline headroom is a model, not a measurement.');
+  }
+  process.exit(0);
+}
 
 let steps;
 try {
