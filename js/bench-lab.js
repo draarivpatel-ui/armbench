@@ -14,7 +14,7 @@ import {
   makeImage, runGrayscale, runBoxBlur, runSobel, runHistogram, runResize,
   timeWorkload, mulberry32, planRun, speedupBetween, estimateFactor,
   workloadById, WORKLOADS, VIDEO_CONFIG, MAX_IMAGE_PIXELS, DEFAULT_OPTIONS,
-  timingStats, runTelemetry, fmt, fmtInt, badgeFor, BASIS,
+  MAX_STEP_ITERATIONS, timingStats, runTelemetry, fmt, fmtInt, badgeFor, BASIS,
 } from './armbench-core.js';
 
 /* ------------------------------------------------------------------ */
@@ -722,8 +722,11 @@ export function startComparison({ workloadId, size = 256, seed = 1337, iteration
   if (!Number.isFinite(seed)) {
     throw new RangeError('seed must be a finite number');
   }
-  const budgetIters = Math.max(1, Math.floor(LAB_MAX_PIXELS_PER_OP / (size * size)));
-  const iters = Math.min(iterations, budgetIters);
+  if (size * size > LAB_MAX_PIXELS_PER_OP) {
+    throw new RangeError('size exceeds the per pass pixel budget; even one timed call would break it');
+  }
+  const budgetIters = Math.floor(LAB_MAX_PIXELS_PER_OP / (size * size));
+  const iters = Math.min(iterations, MAX_STEP_ITERATIONS, budgetIters);
   const benchInput = makeImage(seed, size, size);
   const probeInput = makeColorProbe(seed, size, size);
   return {
@@ -1444,7 +1447,10 @@ export function buildAuditPayload({ run = null, lab = null, stress = null, roofs
         size: c.size, configId: c.configId, ok: c.ok,
         failedChecks: c.checks.filter((k) => !k.ok).map((k) => k.name),
       })),
-      worstCaseMs: stress.worstCase.map((w) => ({ configId: w.configId, latencyMs: w.latencyMs, ok: w.ok })),
+      worstCaseMs: stress.worstCase.map((w) => ({
+        configId: w.configId, configName: w.configName, size: w.size,
+        latencyMs: w.latencyMs, ok: w.ok, detail: w.detail,
+      })),
     };
   }
   if (roofs) {
@@ -1514,23 +1520,35 @@ export function auditCsv(rows) {
 }
 
 /**
- * Flat audit CSV: every measured bench row plus every lab config row, with
- * a section column so the two never mix silently. The digest line is
+ * Flat audit CSV: every measured bench row, lab config row and edge stress
+ * row, with a section column so the three never mix silently. The digest line is
  * appended as a comment row so the checksum travels with the data.
  */
 export function auditExportCsv(payload) {
   const rows = [['section', 'workload', 'config', 'size', 'iterations', 'mean_ms',
-    'ops_per_sec', 'cv_percent', 'accuracy_pct', 'exact', 'basis']];
+    'ops_per_sec', 'cv_percent', 'accuracy_pct', 'exact', 'basis', 'ok', 'detail']];
   if (payload.bench) {
     for (const r of payload.bench.rows) {
       rows.push(['bench', r.workloadId, 'reference', r.size, r.iterations,
-        r.meanMs, r.opsPerSec, r.cvPercent, '', '', r.basis]);
+        r.meanMs, r.opsPerSec, r.cvPercent, '', '', r.basis, '', '']);
     }
   }
   if (payload.lab) {
     for (const c of payload.lab.configs) {
       rows.push(['optimization-lab', payload.lab.workloadId, c.id, payload.lab.size,
-        payload.lab.iterations, '', c.opsPerSec, '', c.accuracyPct, c.exact, c.basis]);
+        payload.lab.iterations, '', c.opsPerSec, '', c.accuracyPct, c.exact, c.basis, '', '']);
+    }
+  }
+  if (payload.stress) {
+    for (const c of payload.stress.cases) {
+      rows.push(['edge-stress', payload.stress.workloadId, c.configId, c.size,
+        '', '', '', '', '', '', BASIS.MEASURED, c.ok,
+        c.ok ? 'all invariants held' : c.failedChecks.join('; ')]);
+    }
+    for (const w of payload.stress.worstCaseMs) {
+      rows.push(['edge-stress', payload.stress.workloadId, w.configId, w.size || '',
+        1, w.latencyMs, '', '', '', '', BASIS.MEASURED, w.ok,
+        w.ok ? 'worst case single pass latency' : (w.detail || 'failed')]);
     }
   }
   const text = auditCsv(rows) + '\r\n';
@@ -1686,8 +1704,8 @@ function validateBookmarkFields(data) {
       throw new RangeError('size ' + String(sz) + ' is out of range');
     }
   }
-  if (!Number.isInteger(data.iterations) || data.iterations < 1 || data.iterations > 12) {
-    throw new RangeError('iterations must be an integer from 1 to 12');
+  if (!Number.isInteger(data.iterations) || data.iterations < 1 || data.iterations > 8) {
+    throw new RangeError('iterations must be an integer from 1 to 8');
   }
   if (data.workload !== null && !(typeof data.workload === 'string' && labConfigsFor(data.workload))) {
     throw new RangeError('unknown workload ' + JSON.stringify(data.workload));

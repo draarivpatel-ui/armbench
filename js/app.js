@@ -237,7 +237,7 @@ function status(text) {
 }
 
 async function runBench() {
-  if (state.running) return;
+  if (state.running || state.labRunning || state.stressRunning) return;
   const sizeVal = els.sizeSelect.value;
   const sizes = sizeVal === 'all' ? [256, 512, 1024] : [Number.parseInt(sizeVal, 10)];
   const iterations = clampInt(els.itersInput.value, 1, 8, 5);
@@ -727,7 +727,7 @@ function setLabControls(disabled) {
 }
 
 async function runLab() {
-  if (state.labRunning || state.running) return;
+  if (state.labRunning || state.stressRunning || state.running) return;
   const workloadId = els.labWorkload.value;
   if (!labConfigsFor(workloadId)) {
     labStatusText('Unknown workload selected.');
@@ -893,15 +893,19 @@ function drawLabChart(lab) {
     tip.textContent = c.name + ': ' + fmtInt(c.opsPerSec) + ' ops/sec, ' +
       fmt(c.speedup, 3) + ' x, ' + (c.exact ? 'bit identical' : fmt(c.accuracyPct, 2) + '% identical');
     bar.append(tip);
-    bar.addEventListener('mouseover', () => {
+    const showBarNote = () => {
       els.labChartNote.textContent = c.name + ': ' + fmtInt(c.opsPerSec) + ' ops/sec measured, ' +
         fmt(c.speedup, 3) + ' x reference, ' +
         (c.exact ? 'bit identical to the reference' : fmt(c.accuracyPct, 2) + '% identical, max byte delta ' + c.maxDelta) +
         (onFrontier ? ', on the Pareto frontier' : '') + '.';
-    });
-    bar.addEventListener('mouseout', () => {
-      els.labChartNote.textContent = 'Bars are normalized to the fastest config. Hover a bar for its exact measured numbers.';
-    });
+    };
+    const resetBarNote = () => {
+      els.labChartNote.textContent = 'Bars are normalized to the fastest config. Hover or focus a bar for its exact measured numbers.';
+    };
+    bar.addEventListener('mouseover', showBarNote);
+    bar.addEventListener('mouseout', resetBarNote);
+    bar.addEventListener('focus', showBarNote);
+    bar.addEventListener('blur', resetBarNote);
     svg.append(bar);
 
     if (onFrontier) {

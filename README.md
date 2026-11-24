@@ -40,7 +40,7 @@ node scripts/run-bench.mjs --size 512 --json        # machine readable with disp
 node scripts/run-bench.mjs --lab blur               # five config optimization comparison
 ```
 
-Run the tests (382 tests, Node 18 or newer, no packages, no network):
+Run the tests (389 tests, Node 18 or newer, no packages, no network):
 
 ```sh
 node --test tests/
@@ -92,6 +92,7 @@ The same command, the same kernels and the same seed produce the same table on t
 | `tests/hardening.test.mjs` | Hostile inputs, pixel budget on every step, CSP contract, single key shortcut switch, copy hygiene self scan |
 | `tests/bench-lab.test.mjs` | Five config registry, exactness sweep, Pareto frontier, op model and roofs, scaling inference, edge stress, FIPS 180-4 SHA-256 vectors, canonical JSON, CSV injection defense, strict bookmark codec |
 | `tests/ui-lab.test.mjs` | Live lab and audit panels in the DOM harness: comparison table, SVG chart, roofline readouts, stress table, export and verify, bookmark apply and reject, self test panel |
+| `tests/revamp-regression.test.mjs` | November 2026 regression probes: budget parity, CLI flag precedence, bookmark range alignment, run mutual exclusion, keyboard chart access, stress CSV evidence |
 
 ## Project Structure
 
@@ -104,7 +105,7 @@ js/bench-lab.js         optimization lab: config variants, comparator, Pareto fr
 js/app.js               browser wiring, chart drawing, telemetry, run flow
 scripts/run-bench.mjs   the same bench from the command line, prints a table or JSON, plus --lab
 scripts/headless-audit.mjs  real headless Chromium audit over the DevTools protocol
-tests/                  382 node:test cases across nine files
+tests/                  389 node:test cases across ten files
 DEVPOST_UPGRADE.md      submission upgrade notes and verification numbers
 NOTES.md                build notes, real measurements, honest caveats
 ```

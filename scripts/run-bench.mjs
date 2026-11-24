@@ -28,7 +28,7 @@ import {
 } from '../js/armbench-core.js';
 import {
   runConfigComparison, labConfigsFor, measureMachineRoofs, rooflinePosition,
-  workloadIntensity, LAB_CONFIGS,
+  workloadIntensity, LAB_CONFIGS, LAB_MAX_PIXELS_PER_OP,
 } from '../js/bench-lab.js';
 
 const USAGE = `ArmBench Node runner.
@@ -84,6 +84,7 @@ function parseArgs(argv) {
         continue;
       }
       if (flag === '--json') opts.json = true;
+      if (flag === '--all-sizes') opts.size = null;
     } else {
       errors.push('unknown flag ' + JSON.stringify(arg));
     }
@@ -133,8 +134,9 @@ const env = {
 
 if (labWorkload !== null) {
   const labSize = parsed.opts.size !== null ? Number.parseInt(parsed.opts.size, 10) : 256;
-  if (!Number.isInteger(labSize) || labSize < 1 || labSize * labSize > MAX_IMAGE_PIXELS) {
-    console.error('Invalid arguments. --size for --lab must be a positive integer within the pixel cap.');
+  if (!Number.isInteger(labSize) || labSize < 1 || labSize * labSize > MAX_IMAGE_PIXELS ||
+    labSize * labSize > LAB_MAX_PIXELS_PER_OP) {
+    console.error('Invalid arguments. --size for --lab must be a positive integer within the pixel cap and the per pass pixel budget.');
     process.exit(2);
   }
   const lab = runConfigComparison({ workloadId: labWorkload, size: labSize, seed, iterations });

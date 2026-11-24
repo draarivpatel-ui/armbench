@@ -909,11 +909,13 @@ test('a single iteration lab run reports unavailable stability, not a fabricated
   for (const c of lab.configs) assert.equal(c.stability, 'unavailable');
 });
 
-test('the lab honors the same 32 Mi pixel cap as the bench', () => {
-  const cap = Math.floor(Math.sqrt(MAX_IMAGE_PIXELS));
-  assert.throws(() => startComparison({ workloadId: 'blur', size: cap + 8 }), RangeError);
-  const ok = startComparison({ workloadId: 'blur', size: cap, iterations: 1 });
-  assert.equal(ok.size, cap);
+test('the lab honors both the pixel allocation cap and the per pass budget', () => {
+  const allocCap = Math.floor(Math.sqrt(MAX_IMAGE_PIXELS));
+  assert.throws(() => startComparison({ workloadId: 'blur', size: allocCap + 8 }), RangeError);
+  const budgetCap = Math.floor(Math.sqrt(LAB_MAX_PIXELS_PER_OP));
+  const ok = startComparison({ workloadId: 'blur', size: budgetCap, iterations: 1 });
+  assert.equal(ok.size, budgetCap);
+  assert.throws(() => startComparison({ workloadId: 'blur', size: budgetCap + 1, iterations: 1 }), RangeError);
 });
 
 test('accuracyAgainst scores partially correct variants honestly', () => {
