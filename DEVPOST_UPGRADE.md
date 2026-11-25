@@ -31,9 +31,9 @@ A cancelled run could previously leave a stale report available for export. The 
 - A live browser runtime suite that boots the shipped app and drives the full flow.
 - Explicit separation of three bases: measured, estimated, and arithmetic projection.
 
-## Verification numbers
+## Initial verification numbers
 
-Verified on Node v26.8.1 with:
+The pre-lab checkpoint verified on Node v26.8.1 with:
 
 ```sh
 node --test tests/
@@ -51,7 +51,7 @@ python3 ../../hark_honesty_and_defect_harness.py --audit . --project armbench
 
 The CLI prints a dispersion summary whose verdict is derived from real samples, for example `6 rows, mean cv 19.8 percent, worst cv 55.7 percent, verdict noisy run, rerun recommended`. That candid verdict is the point of the upgrade: an unstable run is reported as unstable. The honesty audit reports 0 violations.
 
-Browser layout and rendering were exercised through the DOM runtime adapter and markup contracts, not measured in a real browser during this verification run. The estimate model and the Graviton plug in point are unchanged and remain clearly separated from every measurement.
+During that checkpoint, browser layout and rendering were exercised through the DOM runtime adapter and markup contracts, not measured in a real browser. The estimate model and the Graviton plug in point are unchanged and remain clearly separated from every measurement.
 
 ## What's next
 
