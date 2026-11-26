@@ -40,7 +40,7 @@ node scripts/run-bench.mjs --size 512 --json        # machine readable with disp
 node scripts/run-bench.mjs --lab blur               # five config optimization comparison
 ```
 
-Run the tests (392 tests, Node 18 or newer, no packages, no network):
+Run the tests (393 tests, Node 18 or newer, no packages, no network):
 
 ```sh
 node --test tests/
