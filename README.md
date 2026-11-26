@@ -40,7 +40,7 @@ node scripts/run-bench.mjs --size 512 --json        # machine readable with disp
 node scripts/run-bench.mjs --lab blur               # five config optimization comparison
 ```
 
-Run the tests (389 tests, Node 18 or newer, no packages, no network):
+Run the tests (392 tests, Node 18 or newer, no packages, no network):
 
 ```sh
 node --test tests/
@@ -105,7 +105,7 @@ js/bench-lab.js         optimization lab: config variants, comparator, Pareto fr
 js/app.js               browser wiring, chart drawing, telemetry, run flow
 scripts/run-bench.mjs   the same bench from the command line, prints a table or JSON, plus --lab
 scripts/headless-audit.mjs  real headless Chromium audit over the DevTools protocol
-tests/                  389 node:test cases across ten files
+tests/                  392 node:test cases across eleven files
 DEVPOST_UPGRADE.md      submission upgrade notes and verification numbers
 NOTES.md                build notes, real measurements, honest caveats
 ```

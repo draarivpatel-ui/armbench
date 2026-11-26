@@ -1378,7 +1378,7 @@ export function canonicalJson(value) {
       return v;
     }
     if (Array.isArray(v)) return v.map(normalize);
-    const o = {};
+    const o = Object.create(null);
     for (const k of Object.keys(v).sort()) o[k] = normalize(v[k]);
     return o;
   };
@@ -1506,7 +1506,10 @@ export function csvEscape(value) {
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   const s = String(value);
   let v = s;
-  if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;
+  const lead = (/^[\s\p{Cf}\p{Cc}]*/u.exec(s) || [''])[0];
+  const first = s.charAt(lead.length);
+  const plainNumber = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(s.slice(lead.length));
+  if (lead.length > 0 || (first !== '' && '=+-@'.indexOf(first) !== -1 && !(first === '-' && plainNumber))) v = "'" + v;
   if (/[",\n\r]/.test(v)) v = '"' + v.replace(/"/g, '""') + '"';
   return v;
 }

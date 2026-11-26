@@ -684,7 +684,7 @@ test('csvEscape quotes cells containing commas, quotes or breaks', () => {
 });
 
 test('csvEscape neutralizes every spreadsheet formula leader', () => {
-  for (const v of ['=1+1', '+2', '-3', '@cmd', '\t=x', '\r=1']) {
+  for (const v of ['=1+1', '+2', '-3x', '@cmd', '\t=x', '\r=1']) {
     const out = csvEscape(v);
     // A break-containing cell is also quoted, so check the parsed content.
     const content = out.startsWith('"') && out.endsWith('"')
@@ -697,6 +697,10 @@ test('csvEscape neutralizes every spreadsheet formula leader', () => {
   const evilContent = evil.slice(1, -1).replace(/""/g, '"');
   assert.equal(evilContent[0], "'");
   assert.equal(evilContent[1], '=');
+});
+
+test('csvEscape preserves a plain negative number', () => {
+  assert.equal(csvEscape('-3'), '-3');
 });
 
 test('csvEscape quotes a formula cell that also contains a comma', () => {
