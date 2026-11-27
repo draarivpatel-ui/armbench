@@ -7,7 +7,7 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "test": "node --test tests/",
+    "test": "node --test",
     "bench": "node scripts/run-bench.mjs"
   },
   "engines": {
