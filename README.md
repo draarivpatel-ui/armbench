@@ -43,7 +43,7 @@ node scripts/run-bench.mjs --lab blur               # five config optimization c
 Run the tests (393 tests, Node 18 or newer, no packages, no network):
 
 ```sh
-node --test tests/
+node --test
 ```
 
 ## Methodology
